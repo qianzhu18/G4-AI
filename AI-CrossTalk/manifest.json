@@ -23,6 +23,11 @@
     "https://chat.openai.com/*",
     "https://chatgpt.com/*",
     "https://gemini.google.com/*",
+    "https://grok.com/*",
+    "https://x.ai/*",
+    "https://x.com/i/grok*",
+    "https://x.com/grok*",
+    "https://twitter.com/i/grok*",
     "https://chat.deepseek.com/*",
     "https://kimi.moonshot.cn/*",
     "https://www.kimi.com/*",
@@ -76,6 +81,19 @@
       ],
       "js": [
         "content/gemini.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://grok.com/*",
+        "https://x.ai/*",
+        "https://x.com/i/grok*",
+        "https://x.com/grok*",
+        "https://twitter.com/i/grok*"
+      ],
+      "js": [
+        "content/grok.js"
       ],
       "run_at": "document_idle"
     },

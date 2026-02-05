@@ -10,7 +10,7 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    outDir: '../ai-roundtable-v1.0.2/web',
+    outDir: '../AI-CrossTalk/web',
     emptyOutDir: true,
   },
   base: './', // 相对路径，确保在扩展环境中正常工作

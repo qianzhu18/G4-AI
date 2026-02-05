@@ -2,6 +2,7 @@ export const AI_BRAND_COLORS = {
   chatgpt: '#000000',
   claude: '#D97757',
   gemini: '#3186FF',
+  grok: '#111111',
   chatglm: '#4268FA',
   kimi: '#000000',
   deepseek: '#4D6BFE',
@@ -9,7 +10,7 @@ export const AI_BRAND_COLORS = {
 } as const
 
 export const AI_GROUPS = {
-  'US-AI': ['claude', 'chatgpt', 'gemini'] as const,
+  'US-AI': ['claude', 'chatgpt', 'gemini', 'grok'] as const,
   'CN-AI': ['deepseek', 'kimi', 'doubao', 'chatglm'] as const,
 }
 
@@ -17,6 +18,7 @@ export const AI_DISPLAY_NAMES: Record<string, string> = {
   claude: 'Claude',
   chatgpt: 'ChatGPT',
   gemini: 'Gemini',
+  grok: 'Grok',
   deepseek: 'DeepSeek',
   kimi: 'Kimi',
   doubao: 'Doubao',
@@ -27,6 +29,7 @@ export const AI_TYPES = [
   'claude',
   'chatgpt',
   'gemini',
+  'grok',
   'deepseek',
   'kimi',
   'doubao',
@@ -37,6 +40,7 @@ export const AI_URLS: Record<string, string> = {
   claude: 'https://claude.ai',
   chatgpt: 'https://chatgpt.com',
   gemini: 'https://gemini.google.com',
+  grok: 'https://grok.com',
   deepseek: 'https://chat.deepseek.com',
   kimi: 'https://kimi.com',
   doubao: 'https://www.doubao.com/chat/',

@@ -2,13 +2,14 @@ const AI_URL_PATTERNS = {
   claude: ['claude.ai'],
   chatgpt: ['chat.openai.com', 'chatgpt.com'],
   gemini: ['gemini.google.com'],
+  grok: ['grok.com', 'x.ai', 'x.com/i/grok', 'x.com/grok', 'twitter.com/i/grok'],
   deepseek: ['chat.deepseek.com'],
   kimi: ['www.kimi.com', 'kimi.com'],
   doubao: ['www.doubao.com', 'doubao.com', 'bot.doubao.com', 'chat.doubao.com'],
   chatglm: ['chatglm.cn']
 };
 
-const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'deepseek', 'kimi', 'doubao', 'chatglm'];
+const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'grok', 'deepseek', 'kimi', 'doubao', 'chatglm'];
 
 const tabToAIMap = new Map();
 
