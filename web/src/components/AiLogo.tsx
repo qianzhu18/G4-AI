@@ -10,6 +10,7 @@ const AI_ICON_MAP: Record<AiType, string> = {
   claude: './icons/claude-color.svg',
   chatgpt: './icons/chatgpt-color.svg',
   gemini: './icons/gemini-color.svg',
+  qwen: './icons/qwen-color.svg',
   grok: './icons/grok-color.svg',
   deepseek: './icons/deepseek-color.svg',
   kimi: './icons/kimi-color.svg',

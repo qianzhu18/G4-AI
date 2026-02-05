@@ -1,4 +1,4 @@
-const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'grok', 'deepseek', 'kimi', 'doubao', 'chatglm'];
+const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'qwen', 'grok', 'deepseek', 'kimi', 'doubao', 'chatglm'];
 
 const logContainer = document.getElementById('log-container');
 const pairingCodeEl = document.getElementById('pairing-code');
@@ -106,6 +106,7 @@ function getAITypeFromUrl(url) {
   if (url.includes('claude.ai')) return 'claude';
   if (url.includes('chat.openai.com') || url.includes('chatgpt.com')) return 'chatgpt';
   if (url.includes('gemini.google.com')) return 'gemini';
+  if (url.includes('qianwen.com')) return 'qwen';
   if (url.includes('grok.com') || url.includes('x.ai') || url.includes('x.com/i/grok') || url.includes('x.com/grok') || url.includes('twitter.com/i/grok')) return 'grok';
   if (url.includes('chat.deepseek.com')) return 'deepseek';
   if (url.includes('kimi.com')) return 'kimi';
