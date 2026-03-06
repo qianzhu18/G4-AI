@@ -40,8 +40,8 @@ export function QuickLinks({ statuses, tabCounts }: QuickLinksProps) {
         <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           快速打开
         </h3>
-        <span className="text-[10px] text-slate-400" title="Ctrl/Cmd+点击可在后台打开">
-          Ctrl+点击后台打开
+        <span className="text-[10px] text-slate-400">
+          点击即打开
         </span>
       </div>
 
