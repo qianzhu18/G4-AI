@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AI-CrossTalk - Multi-AI Roundtable",
-  "version": "1.0.3",
-  "description": "让多个 AI 助手围桌讨论，交叉评价，深度协作",
+  "name": "G4 AI",
+  "version": "1.0.0",
+  "description": "Gather the smartest, skip the rest",
   "permissions": [
     "sidePanel",
     "activeTab",
@@ -23,21 +23,11 @@
     "https://chat.openai.com/*",
     "https://chatgpt.com/*",
     "https://gemini.google.com/*",
-    "https://www.qianwen.com/*",
     "https://grok.com/*",
     "https://x.ai/*",
     "https://x.com/i/grok*",
     "https://x.com/grok*",
-    "https://twitter.com/i/grok*",
-    "https://chat.deepseek.com/*",
-    "https://kimi.moonshot.cn/*",
-    "https://www.kimi.com/*",
-    "https://kimi.com/*",
-    "https://www.doubao.com/*",
-    "https://doubao.com/*",
-    "https://bot.doubao.com/*",
-    "https://chat.doubao.com/*",
-    "https://chatglm.cn/*"
+    "https://twitter.com/i/grok*"
   ],
   "side_panel": {
     "default_path": "sidepanel/panel.html"
@@ -87,15 +77,6 @@
     },
     {
       "matches": [
-        "https://www.qianwen.com/*"
-      ],
-      "js": [
-        "content/qwen.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
         "https://grok.com/*",
         "https://x.ai/*",
         "https://x.com/i/grok*",
@@ -104,47 +85,6 @@
       ],
       "js": [
         "content/grok.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://chat.deepseek.com/*"
-      ],
-      "js": [
-        "content/deepseek.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://kimi.moonshot.cn/*",
-        "https://www.kimi.com/*",
-        "https://kimi.com/*"
-      ],
-      "js": [
-        "content/kimi.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://www.doubao.com/*",
-        "https://doubao.com/*",
-        "https://bot.doubao.com/*",
-        "https://chat.doubao.com/*"
-      ],
-      "js": [
-        "content/doubao.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://chatglm.cn/*"
-      ],
-      "js": [
-        "content/chatglm.js"
       ],
       "run_at": "document_idle"
     }
@@ -156,6 +96,6 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "打开 AI-CrossTalk"
+    "default_title": "打开 G4 AI"
   }
 }

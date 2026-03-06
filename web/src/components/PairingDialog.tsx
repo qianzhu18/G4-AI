@@ -83,7 +83,7 @@ export function PairingDialog({
         )}
 
         <h2 className="text-xl font-semibold text-slate-900 mb-2">
-          {isPaired ? '配对成功' : '连接 AI-CrossTalk 扩展'}
+          {isPaired ? '配对成功' : '连接 G4 AI 扩展'}
         </h2>
 
         {isPaired ? (
@@ -93,7 +93,7 @@ export function PairingDialog({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-slate-600 mb-4">已成功连接到 AI-CrossTalk 扩展</p>
+            <p className="text-slate-600 mb-4">已成功连接到 G4 AI 扩展</p>
             <p className="text-sm text-slate-400 mb-6">现在可以开始使用多 AI 对话功能了</p>
             {onClose && (
               <button
@@ -107,9 +107,9 @@ export function PairingDialog({
         ) : (
           <>
             <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-medium text-blue-900 mb-2">配对步骤：</h3>
+                <h3 className="font-medium text-blue-900 mb-2">配对步骤：</h3>
               <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                <li>在 Chrome 中安装 AI-CrossTalk 扩展</li>
+                <li>在 Chrome 中安装 G4 AI 扩展</li>
                 <li>打开 <code className="bg-blue-100 px-1 rounded">chrome://extensions</code> 复制扩展 ID</li>
                 <li>点击扩展图标打开侧边栏，复制 6 位配对码</li>
                 <li>在下方输入两项信息完成配对</li>
@@ -168,12 +168,12 @@ export function PairingDialog({
             <p className="mt-6 text-xs text-slate-400 text-center">
               首次使用？请先
               <a
-                href="https://github.com/axtonliu/ai-roundtable"
+                href="https://github.com/qianzhu18/CrossWise"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-slate-600 hover:underline ml-1"
               >
-                安装 AI-CrossTalk 扩展
+                安装 G4 AI 扩展
               </a>
             </p>
           </>

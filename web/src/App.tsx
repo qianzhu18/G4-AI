@@ -235,11 +235,12 @@ function App() {
     }
 
     for (const ai of targets) {
-      // User sees original message in their chat history
       addUserMessage(ai, message)
-      // AI receives message with injected context
-      await sendMessage(ai, finalMessage)
     }
+
+    await Promise.allSettled(
+      targets.map(ai => sendMessage(ai, finalMessage))
+    )
   }, [isPaired, selectedAis, statuses, sendMessage, addLog, addUserMessage, getResponse])
 
   const handleMutual = useCallback(async (prompt?: string) => {
@@ -258,13 +259,15 @@ function App() {
     addLog(`开始互评: ${targets.join(' vs ')}`, 'info')
 
     const currentResponses: Record<string, string> = {}
-    for (const ai of targets) {
-      const resp = await getResponse(ai)
-      if (resp) {
-        currentResponses[ai] = resp
-      }
+    const responseResults = await Promise.all(
+      targets.map(async (ai) => ({ ai, resp: await getResponse(ai) }))
+    )
+
+    for (const { ai, resp } of responseResults) {
+      if (resp) currentResponses[ai] = resp
     }
 
+    const messageTasks: Promise<unknown>[] = []
     for (const targetAi of targets) {
       const othersContent = targets
         .filter(ai => ai !== targetAi && currentResponses[ai])
@@ -276,9 +279,11 @@ function App() {
           ? `请${prompt}：\n\n${othersContent}`
           : `请评价以下其他 AI 的回复：\n\n${othersContent}`
         addUserMessage(targetAi, mutualPrompt)
-        await sendMessage(targetAi, mutualPrompt)
+        messageTasks.push(sendMessage(targetAi, mutualPrompt))
       }
     }
+
+    await Promise.allSettled(messageTasks)
   }, [isPaired, selectedAis, statuses, getResponse, sendMessage, addLog, addUserMessage])
 
   const handleCross = useCallback(async (targetAis: AiType[], sourceAi: AiType, prompt: string) => {
@@ -296,12 +301,14 @@ function App() {
 
     const crossPrompt = `【${sourceAi.toUpperCase()} 的回复】\n${sourceResponse}\n\n${prompt}`
 
-    for (const target of targetAis) {
-      if (statuses[target]) {
-        addUserMessage(target, crossPrompt)
-        await sendMessage(target, crossPrompt)
-      }
+    const availableTargets = targetAis.filter(target => statuses[target])
+    for (const target of availableTargets) {
+      addUserMessage(target, crossPrompt)
     }
+
+    await Promise.allSettled(
+      availableTargets.map(target => sendMessage(target, crossPrompt))
+    )
   }, [isPaired, statuses, getResponse, sendMessage, addLog, addUserMessage])
 
   const handleNewConversation = useCallback(async () => {
@@ -336,35 +343,35 @@ function App() {
 
     addLog('刷新对话...', 'info')
 
-    for (const ai of targets) {
-      try {
-        const response = await getResponse(ai)
-        if (response) {
-          // Check if this response is different from the last one
-          const msgs = conversations[ai] || []
-          const lastMsg = msgs[msgs.length - 1]
-
-          if (lastMsg?.role === 'assistant' && lastMsg.content === response) {
-            // Same content, skip
-            continue
-          }
-
-          // Add as a new assistant message
-          const newMsg: Message = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: response,
-            timestamp: new Date()
-          }
-
-          setConversations(prev => ({
-            ...prev,
-            [ai]: [...prev[ai], newMsg]
-          }))
+    const refreshed = await Promise.all(
+      targets.map(async (ai) => {
+        try {
+          const response = await getResponse(ai)
+          return { ai, response }
+        } catch (err) {
+          console.error(`Failed to refresh ${ai}:`, err)
+          return { ai, response: null }
         }
-      } catch (err) {
-        console.error(`Failed to refresh ${ai}:`, err)
+      })
+    )
+
+    for (const { ai, response } of refreshed) {
+      if (!response) continue
+      const msgs = conversations[ai] || []
+      const lastMsg = msgs[msgs.length - 1]
+      if (lastMsg?.role === 'assistant' && lastMsg.content === response) continue
+
+      const newMsg: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: response,
+        timestamp: new Date()
       }
+
+      setConversations(prev => ({
+        ...prev,
+        [ai]: [...prev[ai], newMsg]
+      }))
     }
 
     addLog('对话已刷新', 'success')
@@ -407,7 +414,7 @@ function App() {
   }, [tabCounts])
 
   return (
-    <div className="flex h-screen bg-[#fafafa]">
+    <div className="flex h-screen bg-[radial-gradient(circle_at_top_left,_#dcfce7,_#eff6ff_38%,_#f8fafc_72%)]">
       <Sidebar
         statuses={statuses}
         selectedAis={selectedAis}
@@ -437,12 +444,15 @@ function App() {
           </div>
         )}
 
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between rounded-2xl border border-cyan-100/80 bg-white/80 px-5 py-3 shadow-[0_20px_50px_rgba(15,23,42,0.08)] backdrop-blur">
           <div className="flex items-center gap-2">
-            <img src="./icons/icon128.png" alt="AI-CrossTalk" className="w-8 h-8" />
-            <h1 className="text-xl font-semibold text-slate-900">AI-CrossTalk</h1>
+            <img src="./icons/icon128.png" alt="G4 AI" className="w-9 h-9 rounded-xl shadow-sm" />
+            <div className="mr-1">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">G4 AI</h1>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-700">Gather the smartest, skip the rest</p>
+            </div>
             <a
-              href="https://github.com/CHOSENX-GPU/ai-roundtable"
+              href="https://github.com/qianzhu18/CrossWise"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-700 transition-colors"
@@ -463,7 +473,7 @@ function App() {
                 }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${isPaired ? 'bg-green-500' : 'bg-amber-500'}`} />
-              {isPaired ? '已配对' : '配对扩展'}
+              {isPaired ? '已配对' : '连接扩展'}
             </button>
             <div className="w-px h-5 bg-slate-200" />
             <button

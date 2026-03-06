@@ -1,4 +1,10 @@
-import { EXTENSION_ID_KEY, PAIRING_TOKEN_KEY, AI_TYPES } from './constants'
+import {
+  EXTENSION_ID_KEY,
+  PAIRING_TOKEN_KEY,
+  LEGACY_EXTENSION_ID_KEY,
+  LEGACY_PAIRING_TOKEN_KEY,
+  AI_TYPES
+} from './constants'
 import type { AiType, BridgeRequest, BridgeMessage } from './types'
 
 type StatusUpdateHandler = (aiType: AiType, connected: boolean) => void
@@ -13,6 +19,8 @@ interface BridgeCallbacks {
   onError?: ErrorHandler
 }
 
+const REQUEST_TIMEOUT_MS = 15_000
+
 class ExtensionBridge {
   private port: chrome.runtime.Port | null = null
   private extensionId: string | null = null
@@ -21,8 +29,22 @@ class ExtensionBridge {
   private callbacks: BridgeCallbacks = {}
 
   constructor() {
-    this.extensionId = localStorage.getItem(EXTENSION_ID_KEY)
-    this.token = localStorage.getItem(PAIRING_TOKEN_KEY)
+    this.extensionId =
+      localStorage.getItem(EXTENSION_ID_KEY) ||
+      localStorage.getItem(LEGACY_EXTENSION_ID_KEY)
+    this.token =
+      localStorage.getItem(PAIRING_TOKEN_KEY) ||
+      localStorage.getItem(LEGACY_PAIRING_TOKEN_KEY)
+
+    if (this.extensionId) {
+      localStorage.setItem(EXTENSION_ID_KEY, this.extensionId)
+      localStorage.removeItem(LEGACY_EXTENSION_ID_KEY)
+    }
+
+    if (this.token) {
+      localStorage.setItem(PAIRING_TOKEN_KEY, this.token)
+      localStorage.removeItem(LEGACY_PAIRING_TOKEN_KEY)
+    }
 
     this.autoDetectExtensionId()
 
@@ -126,10 +148,10 @@ class ExtensionBridge {
         // External pages (localhost) use chrome.runtime.connect(extensionId)
         if (this.isInternalApp) {
           console.log('[Bridge] Connecting as internal extension page')
-          this.port = chrome.runtime.connect({ name: 'ai-roundtable-web-internal' })
+          this.port = chrome.runtime.connect({ name: 'g4-ai-web-internal' })
         } else {
           console.log('[Bridge] Connecting to extension:', this.extensionId)
-          this.port = chrome.runtime.connect(this.extensionId!, { name: 'ai-roundtable-web' })
+          this.port = chrome.runtime.connect(this.extensionId!, { name: 'g4-ai-web' })
         }
 
         let resolved = false
@@ -290,9 +312,9 @@ class ExtensionBridge {
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id)
-          reject(new Error('请求超时'))
+          reject(new Error(`请求超时（${REQUEST_TIMEOUT_MS / 1000}s）`))
         }
-      }, 30000)
+      }, REQUEST_TIMEOUT_MS)
 
       this.port!.postMessage(request)
     })

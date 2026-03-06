@@ -2,17 +2,16 @@ const AI_URL_PATTERNS = {
   claude: ['claude.ai'],
   chatgpt: ['chat.openai.com', 'chatgpt.com'],
   gemini: ['gemini.google.com'],
-  qwen: ['qianwen.com'],
   grok: ['grok.com', 'x.ai', 'x.com/i/grok', 'x.com/grok', 'twitter.com/i/grok'],
-  deepseek: ['chat.deepseek.com'],
-  kimi: ['www.kimi.com', 'kimi.com'],
-  doubao: ['www.doubao.com', 'doubao.com', 'bot.doubao.com', 'chat.doubao.com'],
-  chatglm: ['chatglm.cn']
 };
 
-const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'qwen', 'grok', 'deepseek', 'kimi', 'doubao', 'chatglm'];
+const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'grok'];
+const MESSAGE_TIMEOUT_MS = 12000;
+const CONTENT_SCRIPT_PING_TTL_MS = 15000;
 
 const tabToAIMap = new Map();
+const aiToTabIdMap = new Map();
+const contentScriptHealthMap = new Map();
 
 const externalPorts = new Set();
 
@@ -71,6 +70,25 @@ chrome.action.onClicked.addListener((tab) => {
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+async function initializeTabCaches() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (!tab.id || !tab.url) continue;
+      const aiType = getAITypeFromUrl(tab.url);
+      if (!aiType) continue;
+      tabToAIMap.set(tab.id, aiType);
+      if (!aiToTabIdMap.has(aiType)) {
+        aiToTabIdMap.set(aiType, tab.id);
+      }
+    }
+  } catch (err) {
+    console.log('[AI Panel] Failed to initialize tab caches:', err.message);
+  }
+}
+
+initializeTabCaches();
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleInternalMessage(message, sender).then(sendResponse);
   return true;
@@ -93,7 +111,7 @@ chrome.runtime.onConnectExternal.addListener((port) => {
 });
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name === 'ai-roundtable-web-internal') {
+  if (port.name === 'g4-ai-web-internal') {
     console.log('[AI Panel] Internal web app connection');
     externalPorts.add(port);
 
@@ -341,9 +359,17 @@ async function getResponseFromContentScript(aiType) {
   }
 }
 
-async function ensureContentScriptAlive(aiType, tab) {
+async function ensureContentScriptAlive(aiType, tab, forcePing = false) {
+  if (!forcePing) {
+    const lastHealthy = contentScriptHealthMap.get(aiType);
+    if (lastHealthy && Date.now() - lastHealthy < CONTENT_SCRIPT_PING_TTL_MS) {
+      return true;
+    }
+  }
+
   try {
     await chrome.tabs.sendMessage(tab.id, { type: 'PING' }, { timeoutMs: 2000 });
+    contentScriptHealthMap.set(aiType, Date.now());
     return true;
   } catch (err) {
     console.log('[AI Panel] Content script ping failed for', aiType, ':', err.message);
@@ -363,6 +389,7 @@ async function ensureContentScriptAlive(aiType, tab) {
       });
       await new Promise(resolve => setTimeout(resolve, 500));
       console.log('[AI Panel] Content script reloaded for', aiType);
+      contentScriptHealthMap.set(aiType, Date.now());
       return true;
     } catch (reloadErr) {
       console.log('[AI Panel] Failed to reload content script:', reloadErr.message);
@@ -372,7 +399,7 @@ async function ensureContentScriptAlive(aiType, tab) {
 }
 
 async function sendMessageToAI(aiType, message, retryCount = 0) {
-  const maxRetries = 4;
+  const maxRetries = 2;
 
   try {
     const tab = await findAITab(aiType);
@@ -381,7 +408,7 @@ async function sendMessageToAI(aiType, message, retryCount = 0) {
       return { success: false, error: `No ${aiType} tab found` };
     }
 
-    const isAlive = await ensureContentScriptAlive(aiType, tab);
+    const isAlive = await ensureContentScriptAlive(aiType, tab, retryCount > 0);
     if (!isAlive) {
       return { success: false, error: `Failed to connect to ${aiType}` };
     }
@@ -392,7 +419,7 @@ async function sendMessageToAI(aiType, message, retryCount = 0) {
         message
       }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout after 30s')), 30000)
+        setTimeout(() => reject(new Error(`Timeout after ${MESSAGE_TIMEOUT_MS}ms`)), MESSAGE_TIMEOUT_MS)
       )
     ]);
 
@@ -404,13 +431,14 @@ async function sendMessageToAI(aiType, message, retryCount = 0) {
 
     notifySidePanel('SEND_RESULT', result);
     notifyExternalPorts('SEND_RESULT', result);
+    contentScriptHealthMap.set(aiType, Date.now());
 
     return response;
   } catch (err) {
     console.log('[AI Panel] Send error for', aiType, ':', err.message);
 
     if (retryCount < maxRetries && err.message.includes('Receiving end does not exist')) {
-      const waitTime = Math.min(1000 * Math.pow(2, retryCount), 3000);
+      const waitTime = Math.min(500 * Math.pow(2, retryCount), 1500);
       console.log('[AI Panel] Retrying send to', aiType, `attempt ${retryCount + 1}, waiting ${waitTime}ms`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return sendMessageToAI(aiType, message, retryCount + 1);
@@ -427,6 +455,19 @@ async function findAITab(aiType) {
     return null;
   }
 
+  const cachedTabId = aiToTabIdMap.get(aiType);
+  if (cachedTabId) {
+    try {
+      const cachedTab = await chrome.tabs.get(cachedTabId);
+      if (cachedTab?.url && patterns.some(p => cachedTab.url.includes(p))) {
+        return cachedTab;
+      }
+    } catch (err) {
+      // ignored
+    }
+    aiToTabIdMap.delete(aiType);
+  }
+
   console.log('[AI Panel] Looking for', aiType, 'with patterns:', patterns);
 
   const tabs = await chrome.tabs.query({});
@@ -436,6 +477,10 @@ async function findAITab(aiType) {
     console.log('[AI Panel] Checking tab:', tab.id, 'URL:', tab.url);
     if (tab.url && patterns.some(p => tab.url.includes(p))) {
       console.log('[AI Panel] Found matching tab for', aiType, ':', tab.id);
+      if (tab.id) {
+        tabToAIMap.set(tab.id, aiType);
+        aiToTabIdMap.set(aiType, tab.id);
+      }
       return tab;
     }
   }
@@ -467,11 +512,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const aiType = getAITypeFromUrl(tab.url);
     if (aiType) {
       tabToAIMap.set(tabId, aiType);
+      aiToTabIdMap.set(aiType, tabId);
       notifySidePanel('TAB_STATUS_UPDATE', { aiType, connected: true });
       notifyExternalPorts('TAB_STATUS_UPDATE', { aiType, connected: true });
     } else if (tabToAIMap.has(tabId)) {
       const oldAIType = tabToAIMap.get(tabId);
       tabToAIMap.delete(tabId);
+      if (aiToTabIdMap.get(oldAIType) === tabId) {
+        aiToTabIdMap.delete(oldAIType);
+      }
 
       const tabs = await chrome.tabs.query({});
       const hasOtherTab = tabs.some(t => t.url && getAITypeFromUrl(t.url) === oldAIType);
@@ -488,6 +537,10 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   if (tabToAIMap.has(tabId)) {
     const aiType = tabToAIMap.get(tabId);
     tabToAIMap.delete(tabId);
+    contentScriptHealthMap.delete(aiType);
+    if (aiToTabIdMap.get(aiType) === tabId) {
+      aiToTabIdMap.delete(aiType);
+    }
 
     try {
       const tabs = await chrome.tabs.query({});
@@ -524,12 +577,12 @@ setInterval(async () => {
 async function startNewConversation(aiTypes) {
   const results = {};
 
-  for (const aiType of aiTypes) {
+  await Promise.all(aiTypes.map(async (aiType) => {
     try {
       const tab = await findAITab(aiType);
       if (!tab) {
         results[aiType] = { success: false, error: `No ${aiType} tab found` };
-        continue;
+        return;
       }
 
       // Try to capture current response before starting new conversation
@@ -556,7 +609,7 @@ async function startNewConversation(aiTypes) {
       }
 
       // Small delay to ensure response capture message is sent
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       const response = await chrome.tabs.sendMessage(tab.id, {
         type: 'NEW_CONVERSATION'
@@ -567,7 +620,7 @@ async function startNewConversation(aiTypes) {
       console.log('[AI Panel] New conversation error for', aiType, ':', err.message);
       results[aiType] = { success: false, error: err.message };
     }
-  }
+  }));
 
   notifySidePanel('NEW_CONVERSATION_RESULTS', { results });
   notifyExternalPorts('NEW_CONVERSATION_RESULTS', { results });

@@ -14,8 +14,8 @@ interface SidebarProps {
 
 export function Sidebar({ statuses, selectedAis, onToggleAi, isConnected, isPaired, onNewConversation }: SidebarProps) {
   return (
-    <aside className="w-56 border-r border-slate-200 bg-white flex flex-col">
-      <div className="p-4 border-b border-slate-200">
+    <aside className="w-56 border-r border-cyan-100 bg-white/85 backdrop-blur flex flex-col shadow-[18px_0_42px_rgba(15,23,42,0.05)]">
+      <div className="p-4 border-b border-cyan-100">
         <div className="flex items-center gap-2">
           <div
             className={clsx(
@@ -30,10 +30,10 @@ export function Sidebar({ statuses, selectedAis, onToggleAi, isConnected, isPair
       </div>
 
       {onNewConversation && (
-        <div className="p-3 border-b border-slate-200">
+        <div className="p-3 border-b border-cyan-100">
           <button
             onClick={onNewConversation}
-            className="w-full px-3 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+            className="w-full px-3 py-2 bg-gradient-to-r from-cyan-900 to-teal-700 text-white rounded-xl font-medium hover:from-cyan-800 hover:to-teal-600 transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -50,23 +50,6 @@ export function Sidebar({ statuses, selectedAis, onToggleAi, isConnected, isPair
           </h3>
           <div className="space-y-1">
             {AI_GROUPS['US-AI'].map((ai) => (
-              <SidebarItem
-                key={ai}
-                aiType={ai}
-                connected={statuses[ai]}
-                selected={selectedAis.has(ai)}
-                onToggle={() => onToggleAi(ai)}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">
-            CN-AI
-          </h3>
-          <div className="space-y-1">
-            {AI_GROUPS['CN-AI'].map((ai) => (
               <SidebarItem
                 key={ai}
                 aiType={ai}
@@ -97,7 +80,7 @@ function SidebarItem({ aiType, connected, selected, onToggle }: SidebarItemProps
       className={clsx(
         'flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors',
         connected
-          ? 'cursor-pointer hover:bg-slate-100'
+          ? 'cursor-pointer hover:bg-cyan-50'
           : 'cursor-not-allowed opacity-50'
       )}
     >

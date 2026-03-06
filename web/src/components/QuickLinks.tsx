@@ -63,25 +63,6 @@ export function QuickLinks({ statuses, tabCounts }: QuickLinksProps) {
           ))}
         </div>
       </section>
-
-      <section>
-        <h4 className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-2 px-1">
-          CN-AI
-        </h4>
-        <div className="space-y-1">
-          {AI_GROUPS['CN-AI'].map((ai) => (
-            <QuickLinkItem
-              key={ai}
-              aiType={ai}
-              connected={statuses[ai]}
-              tabCount={tabCounts[ai]}
-              onOpen={(e) => handleOpen(ai, e)}
-              onCopy={(e) => handleCopy(ai, e)}
-              copied={copiedAi === ai}
-            />
-          ))}
-        </div>
-      </section>
     </div>
   )
 }
