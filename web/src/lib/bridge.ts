@@ -19,7 +19,7 @@ interface BridgeCallbacks {
   onError?: ErrorHandler
 }
 
-const REQUEST_TIMEOUT_MS = 20_000
+const REQUEST_TIMEOUT_MS = 15_000
 
 class ExtensionBridge {
   private port: chrome.runtime.Port | null = null

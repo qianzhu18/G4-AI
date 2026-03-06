@@ -259,13 +259,15 @@ function App() {
     addLog(`开始互评: ${targets.join(' vs ')}`, 'info')
 
     const currentResponses: Record<string, string> = {}
-    for (const ai of targets) {
-      const resp = await getResponse(ai)
-      if (resp) {
-        currentResponses[ai] = resp
-      }
+    const responseResults = await Promise.all(
+      targets.map(async (ai) => ({ ai, resp: await getResponse(ai) }))
+    )
+
+    for (const { ai, resp } of responseResults) {
+      if (resp) currentResponses[ai] = resp
     }
 
+    const messageTasks: Promise<unknown>[] = []
     for (const targetAi of targets) {
       const othersContent = targets
         .filter(ai => ai !== targetAi && currentResponses[ai])
@@ -277,9 +279,11 @@ function App() {
           ? `请${prompt}：\n\n${othersContent}`
           : `请评价以下其他 AI 的回复：\n\n${othersContent}`
         addUserMessage(targetAi, mutualPrompt)
-        await sendMessage(targetAi, mutualPrompt)
+        messageTasks.push(sendMessage(targetAi, mutualPrompt))
       }
     }
+
+    await Promise.allSettled(messageTasks)
   }, [isPaired, selectedAis, statuses, getResponse, sendMessage, addLog, addUserMessage])
 
   const handleCross = useCallback(async (targetAis: AiType[], sourceAi: AiType, prompt: string) => {
@@ -297,12 +301,14 @@ function App() {
 
     const crossPrompt = `【${sourceAi.toUpperCase()} 的回复】\n${sourceResponse}\n\n${prompt}`
 
-    for (const target of targetAis) {
-      if (statuses[target]) {
-        addUserMessage(target, crossPrompt)
-        await sendMessage(target, crossPrompt)
-      }
+    const availableTargets = targetAis.filter(target => statuses[target])
+    for (const target of availableTargets) {
+      addUserMessage(target, crossPrompt)
     }
+
+    await Promise.allSettled(
+      availableTargets.map(target => sendMessage(target, crossPrompt))
+    )
   }, [isPaired, statuses, getResponse, sendMessage, addLog, addUserMessage])
 
   const handleNewConversation = useCallback(async () => {
@@ -337,35 +343,35 @@ function App() {
 
     addLog('刷新对话...', 'info')
 
-    for (const ai of targets) {
-      try {
-        const response = await getResponse(ai)
-        if (response) {
-          // Check if this response is different from the last one
-          const msgs = conversations[ai] || []
-          const lastMsg = msgs[msgs.length - 1]
-
-          if (lastMsg?.role === 'assistant' && lastMsg.content === response) {
-            // Same content, skip
-            continue
-          }
-
-          // Add as a new assistant message
-          const newMsg: Message = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: response,
-            timestamp: new Date()
-          }
-
-          setConversations(prev => ({
-            ...prev,
-            [ai]: [...prev[ai], newMsg]
-          }))
+    const refreshed = await Promise.all(
+      targets.map(async (ai) => {
+        try {
+          const response = await getResponse(ai)
+          return { ai, response }
+        } catch (err) {
+          console.error(`Failed to refresh ${ai}:`, err)
+          return { ai, response: null }
         }
-      } catch (err) {
-        console.error(`Failed to refresh ${ai}:`, err)
+      })
+    )
+
+    for (const { ai, response } of refreshed) {
+      if (!response) continue
+      const msgs = conversations[ai] || []
+      const lastMsg = msgs[msgs.length - 1]
+      if (lastMsg?.role === 'assistant' && lastMsg.content === response) continue
+
+      const newMsg: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: response,
+        timestamp: new Date()
       }
+
+      setConversations(prev => ({
+        ...prev,
+        [ai]: [...prev[ai], newMsg]
+      }))
     }
 
     addLog('对话已刷新', 'success')

@@ -26,6 +26,9 @@ const initialState: DiscussionState = {
   responses: AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: '' }), {}) as Record<AiType, string>,
 }
 
+const RESPONSE_SETTLE_MS = 3500
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export function DiscussionMode({
   statuses,
   isPaired,
@@ -41,6 +44,41 @@ export function DiscussionMode({
 
   const allAis = [...AI_TYPES]
   const connectedAis = allAis.filter(ai => statuses[ai])
+
+  const collectResponses = useCallback(async (participants: AiType[]): Promise<Partial<Record<AiType, string>>> => {
+    const fetched = await Promise.all(
+      participants.map(async (ai) => {
+        try {
+          return { ai, response: await getResponse(ai) }
+        } catch {
+          return { ai, response: null }
+        }
+      })
+    )
+
+    const updates = fetched.filter(
+      (item): item is { ai: AiType; response: string } => Boolean(item.response)
+    )
+
+    if (updates.length > 0) {
+      setState(prev => {
+        const merged = { ...prev.responses }
+        for (const { ai, response } of updates) {
+          merged[ai] = response
+        }
+        return { ...prev, responses: merged }
+      })
+
+      for (const { ai, response } of updates) {
+        onResponseCaptured?.(ai, response)
+      }
+    }
+
+    return updates.reduce((acc, { ai, response }) => {
+      acc[ai] = response
+      return acc
+    }, {} as Partial<Record<AiType, string>>)
+  }, [getResponse, onResponseCaptured])
 
   const toggleParticipant = useCallback((ai: AiType) => {
     setSelectedParticipants(prev => {
@@ -87,26 +125,12 @@ export function DiscussionMode({
 
     const initialPrompt = `请就以下主题发表你的观点：\n\n${topic.trim()}\n\n要求：\n1. 清晰阐述你的立场\n2. 提供支持你观点的论据\n3. 保持开放态度，准备与对方进行深入讨论`
 
-    for (const ai of participants) {
-      await sendMessage(ai, initialPrompt)
-    }
+    await Promise.allSettled(participants.map(ai => sendMessage(ai, initialPrompt)))
 
     // Wait for initial responses and capture them
-    await new Promise(resolve => setTimeout(resolve, 8000))
-
-    for (const ai of participants) {
-      const response = await getResponse(ai)
-      if (response) {
-        setState(prev => ({
-          ...prev,
-          responses: { ...prev.responses, [ai]: response }
-        }))
-        if (onResponseCaptured) {
-          onResponseCaptured(ai, response)
-        }
-      }
-    }
-  }, [isPaired, selectedParticipants, topic, sendMessage, getResponse, addLog, onResponseCaptured])
+    await sleep(RESPONSE_SETTLE_MS)
+    await collectResponses(participants)
+  }, [isPaired, selectedParticipants, topic, sendMessage, addLog, collectResponses])
 
   const handleTopicKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -129,34 +153,19 @@ export function DiscussionMode({
 
     addLog(`进入第 ${newRound} 轮`, 'info')
 
-    const responses: Record<AiType, string> = AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: '' }), {}) as Record<AiType, string>
-
-    // Get responses from all participants
-    for (const ai of state.participants) {
-      const response = await getResponse(ai)
-      if (response) {
-        responses[ai] = response
-        setState(prev => ({
-          ...prev,
-          responses: { ...prev.responses, [ai]: response }
-        }))
-        // Call onResponseCaptured to notify parent component
-        if (onResponseCaptured) {
-          onResponseCaptured(ai, response)
-        }
-      }
-    }
+    const responses = await collectResponses(state.participants)
+    const roundTasks: Promise<unknown>[] = []
 
     // For 2 participants: cross-evaluate each other
     if (state.participants.length === 2) {
       const [ai1, ai2] = state.participants
       if (responses[ai1]) {
         const evalPrompt = `【${AI_DISPLAY_NAMES[ai1]} 的观点】\n${responses[ai1]}\n\n请评价上述观点，指出你认同和不认同的地方，并进一步阐述你的立场。`
-        await sendMessage(ai2, evalPrompt)
+        roundTasks.push(sendMessage(ai2, evalPrompt))
       }
       if (responses[ai2]) {
         const evalPrompt = `【${AI_DISPLAY_NAMES[ai2]} 的观点】\n${responses[ai2]}\n\n请评价上述观点，指出你认同和不认同的地方，并进一步阐述你的立场。`
-        await sendMessage(ai1, evalPrompt)
+        roundTasks.push(sendMessage(ai1, evalPrompt))
       }
     } else {
       // For 3-4 participants: cross-evaluate with others
@@ -166,60 +175,38 @@ export function DiscussionMode({
           const ai2 = state.participants[j]
           if (responses[ai1]) {
             const evalPrompt = `【${AI_DISPLAY_NAMES[ai1]} 的观点】\n${responses[ai1]}\n\n请评价上述观点，并阐述你的立场。`
-            await sendMessage(ai2, evalPrompt)
+            roundTasks.push(sendMessage(ai2, evalPrompt))
           }
           if (responses[ai2]) {
             const evalPrompt = `【${AI_DISPLAY_NAMES[ai2]} 的观点】\n${responses[ai2]}\n\n请评价上述观点，并阐述你的立场。`
-            await sendMessage(ai1, evalPrompt)
+            roundTasks.push(sendMessage(ai1, evalPrompt))
           }
         }
       }
     }
 
-    // Wait for cross-evaluation responses and capture them
-    await new Promise(resolve => setTimeout(resolve, 8000))
+    await Promise.allSettled(roundTasks)
 
-    for (const ai of state.participants) {
-      const response = await getResponse(ai)
-      if (response) {
-        setState(prev => ({
-          ...prev,
-          responses: { ...prev.responses, [ai]: response }
-        }))
-        if (onResponseCaptured) {
-          onResponseCaptured(ai, response)
-        }
-      }
-    }
-  }, [state, sendMessage, getResponse, addLog, onResponseCaptured])
+    // Wait for cross-evaluation responses and capture them
+    await sleep(RESPONSE_SETTLE_MS)
+    await collectResponses(state.participants)
+  }, [state, sendMessage, addLog, collectResponses])
 
   const sendInterject = useCallback(async () => {
     if (!state.active || !state.participants || !interjectMessage.trim()) return
 
     addLog('发送插话给所有参与者', 'info')
 
-    for (const ai of state.participants) {
-      await sendMessage(ai, interjectMessage.trim())
-    }
+    await Promise.allSettled(
+      state.participants.map(ai => sendMessage(ai, interjectMessage.trim()))
+    )
 
     setInterjectMessage('')
 
     // Wait for interjection responses and capture them
-    await new Promise(resolve => setTimeout(resolve, 8000))
-
-    for (const ai of state.participants) {
-      const response = await getResponse(ai)
-      if (response) {
-        setState(prev => ({
-          ...prev,
-          responses: { ...prev.responses, [ai]: response }
-        }))
-        if (onResponseCaptured) {
-          onResponseCaptured(ai, response)
-        }
-      }
-    }
-  }, [state, interjectMessage, sendMessage, getResponse, addLog, onResponseCaptured])
+    await sleep(RESPONSE_SETTLE_MS)
+    await collectResponses(state.participants)
+  }, [state, interjectMessage, sendMessage, addLog, collectResponses])
 
   const handleInterjectKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -231,23 +218,7 @@ export function DiscussionMode({
   const generateSummary = useCallback(async () => {
     if (!state.active || !state.participants || state.participants.length < 2) return
 
-    const responses: Record<AiType, string> = AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: '' }), {}) as Record<AiType, string>
-
-    // Get responses from all participants
-    for (const ai of state.participants) {
-      const response = await getResponse(ai)
-      if (response) {
-        responses[ai] = response
-        setState(prev => ({
-          ...prev,
-          responses: { ...prev.responses, [ai]: response }
-        }))
-        // Call onResponseCaptured to notify parent component
-        if (onResponseCaptured) {
-          onResponseCaptured(ai, response)
-        }
-      }
-    }
+    const responses = await collectResponses(state.participants)
 
     // Find a third-party AI (connected but not participating)
     const participantSet = new Set(state.participants)
@@ -285,28 +256,17 @@ export function DiscussionMode({
 
     addLog('生成讨论总结', 'info')
     await sendMessage(summarizer, summaryPrompt)
-  }, [state, sendMessage, getResponse, addLog, statuses, allAis])
+  }, [state, sendMessage, addLog, statuses, allAis, collectResponses])
 
   const refreshResponses = useCallback(async () => {
     if (!state.active || !state.participants) return
 
     addLog('刷新回答...', 'info')
 
-    for (const ai of state.participants) {
-      const response = await getResponse(ai)
-      if (response) {
-        setState(prev => ({
-          ...prev,
-          responses: { ...prev.responses, [ai]: response }
-        }))
-        if (onResponseCaptured) {
-          onResponseCaptured(ai, response)
-        }
-      }
-    }
+    await collectResponses(state.participants)
 
     addLog('回答已刷新', 'success')
-  }, [state, getResponse, addLog, onResponseCaptured])
+  }, [state, addLog, collectResponses])
 
   const endDiscussion = useCallback(() => {
     setState(initialState)
