@@ -1,8 +1,8 @@
-# AI-CrossTalk - 多 AI 智能对话协作平台
+# G4 AI - 多 AI 对比工作台
 
-> 本项目基于 [ai-roundtable](https://github.com/axtonliu/ai-roundtable) 开发，新增了对国产 AI 的全面支持，并提供了功能丰富的 Web 控制面板。
+> Gather the smartest, skip the rest.
 
-让多个 AI 助手围桌讨论，交叉评价，深度协作。支持 Claude、ChatGPT、Gemini、DeepSeek、Kimi、豆包、ChatGLM 等主流 AI 平台。
+让多个 AI 网页端回答在一个独立窗口里并排对比，便于个人评审、记录与快速切换新对话。
 
 ## 📸 项目截图
 
@@ -16,25 +16,20 @@
 
 相比原项目，本版本新增：
 
-- 🇨🇳 **国产 AI 支持**：DeepSeek、Kimi（月之暗面）、豆包（字节跳动）、ChatGLM（智谱）
-- 🎨 **现代化 Web 界面**：基于 React + TypeScript + Tailwind CSS 构建
+- ✅ **稳定优先的 AI 集合**：仅保留 Claude、ChatGPT、Gemini、Grok
+- 🪟 **独立控制台窗口**：插件一键弹出工作台，不污染原网页
+- 🎨 **统一品牌 UI**：更新为 G4 AI 视觉与图标体系
 - 🔄 **刷新对话功能**：手动刷新 AI 回答，确保内容完整
-- 🎯 **优化的 Kimi 支持**：改进回答捕获稳定性，减少中断
-- 🖱️ **快捷操作**：Ctrl+点击后台打开 AI 网站
-- 📱 **响应式布局**：支持 2-4 个 AI 的灵活窗口布局
+- ⚡ **低延迟优化**：并行发送消息，减少等待链路
+- 🖱️ **快捷操作**：Ctrl/Cmd+点击后台打开 AI 网站
 
 ## 📦 支持的 AI 平台
 
-### 国际 AI
+### 当前支持
 - **Claude** (Anthropic)
 - **ChatGPT** (OpenAI)
 - **Gemini** (Google)
-
-### 国产 AI
-- **DeepSeek** (深度求索)
-- **Kimi** (月之暗面)
-- **豆包** (字节跳动)
-- **ChatGLM** (智谱 AI)
+- **Grok** (xAI)
 
 ## 🚀 快速开始
 
@@ -42,7 +37,7 @@
 
 #### 方式一：下载预编译版本
 
-1. 下载 [ai-roundtable-v1.0.3.zip](https://github.com/YOUR_USERNAME/AI-CrossTalk/releases)
+1. 下载发布包：`https://github.com/qianzhu18/CrossWise/releases`
 2. 解压到本地文件夹
 3. 打开 Chrome 浏览器，进入 `chrome://extensions/`
 4. 开启右上角的"开发者模式"
@@ -53,8 +48,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/AI-CrossTalk.git
-cd AI-CrossTalk
+git clone https://github.com/qianzhu18/CrossWise.git
+cd CrossWise/AI-CrossTalk
 
 # 构建 Web 界面
 cd web
@@ -231,10 +226,7 @@ AI-CrossTalk/
 │   ├── claude.js
 │   ├── chatgpt.js
 │   ├── gemini.js
-│   ├── deepseek.js
-│   ├── kimi.js
-│   ├── doubao.js
-│   └── chatglm.js
+│   └── grok.js
 ├── sidepanel/            # 侧边栏
 │   ├── panel.html
 │   ├── panel.js
@@ -304,26 +296,13 @@ async function waitForStreamingComplete() {
 
 ## 📝 更新日志
 
-### v1.0.3 (2024-01-24)
+### v1.0.0 (2026-03-06)
 
-- ✨ 新增：普通界面刷新对话功能
-- 🐛 修复：Kimi 回答捕获中断问题
-- 🐛 修复：快速打开栏 Ctrl+点击无法后台打开
-- 🔧 优化：刷新对话前自动捕获当前回答
-- 🔧 优化：Kimi 回答捕获稳定性（增加检测阈值）
-- 📦 更新：添加 kimi.moonshot.cn 域名支持
-
-### v1.0.2
-
-- ✨ 新增：讨论模式网格布局自适应
-- 🐛 修复：讨论界面窗口大小问题
-- 🐛 修复：参与者选择限制为 4 个
-
-### v1.0.1
-
-- ✨ 初始版本发布
-- ✨ 支持 7 个 AI 平台
-- ✨ 普通模式和讨论模式
+- ✨ 品牌升级：CrossWise → G4 AI
+- ✨ 统一口号：Gather the smartest, skip the rest
+- ✨ 稳定版模型集：Claude、ChatGPT、Gemini、Grok
+- ⚡ 优化：消息并行发送，降低整体等待时间
+- 🐛 优化：缩短请求超时与重试链路，减少卡顿
 
 ## 🤝 贡献指南
 
@@ -337,7 +316,7 @@ async function waitForStreamingComplete() {
 
 ## 📄 开源协议
 
-本项目采用 MIT 协议开源。
+本项目采用 MIT 协议开源，可作为个人品牌插件继续发布。
 
 ## 🙏 致谢
 
@@ -348,8 +327,8 @@ async function waitForStreamingComplete() {
 
 如有问题或建议，欢迎通过以下方式联系：
 
-- 提交 [Issue](https://github.com/YOUR_USERNAME/AI-CrossTalk/issues)
-- 发起 [Discussion](https://github.com/YOUR_USERNAME/AI-CrossTalk/discussions)
+- 提交 [Issue](https://github.com/qianzhu18/CrossWise/issues)
+- 发起 [Discussion](https://github.com/qianzhu18/CrossWise/discussions)
 
 ---
 

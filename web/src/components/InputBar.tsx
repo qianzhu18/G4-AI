@@ -66,7 +66,7 @@ export function InputBar({
 
     // Normal message parsing
     // 1. Extract TARGETS from the START of the message
-    // e.g. "@Kimi @DeepSeek help me" -> targets=[kimi, deepseek], cleanMsg="help me"
+    // e.g. "@Claude @Gemini help me" -> targets=[claude, gemini], cleanMsg="help me"
     const startMentionsRegex = /^(@\w+\s*)+/
     const startMatch = trimmed.match(startMentionsRegex)
 
@@ -204,5 +204,4 @@ export function InputBar({
     </div>
   )
 }
-
 

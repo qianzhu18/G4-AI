@@ -1,4 +1,4 @@
-const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'qwen', 'grok', 'deepseek', 'kimi', 'doubao', 'chatglm'];
+const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'grok'];
 
 const logContainer = document.getElementById('log-container');
 const pairingCodeEl = document.getElementById('pairing-code');
@@ -77,8 +77,13 @@ function setupEventListeners() {
 
 function openDashboard() {
   const dashboardUrl = chrome.runtime.getURL('web/index.html');
-  chrome.tabs.create({ url: dashboardUrl }, (tab) => {
-    log('控制台已在新标签页打开', 'success');
+  chrome.windows.create({
+    url: dashboardUrl,
+    type: 'popup',
+    width: 1280,
+    height: 820,
+  }, () => {
+    log('控制台已在独立窗口打开', 'success');
   });
 }
 
@@ -106,12 +111,7 @@ function getAITypeFromUrl(url) {
   if (url.includes('claude.ai')) return 'claude';
   if (url.includes('chat.openai.com') || url.includes('chatgpt.com')) return 'chatgpt';
   if (url.includes('gemini.google.com')) return 'gemini';
-  if (url.includes('qianwen.com')) return 'qwen';
   if (url.includes('grok.com') || url.includes('x.ai') || url.includes('x.com/i/grok') || url.includes('x.com/grok') || url.includes('twitter.com/i/grok')) return 'grok';
-  if (url.includes('chat.deepseek.com')) return 'deepseek';
-  if (url.includes('kimi.com')) return 'kimi';
-  if (url.includes('doubao.com')) return 'doubao';
-  if (url.includes('chatglm.cn')) return 'chatglm';
   return null;
 }
 

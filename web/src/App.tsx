@@ -235,11 +235,12 @@ function App() {
     }
 
     for (const ai of targets) {
-      // User sees original message in their chat history
       addUserMessage(ai, message)
-      // AI receives message with injected context
-      await sendMessage(ai, finalMessage)
     }
+
+    await Promise.allSettled(
+      targets.map(ai => sendMessage(ai, finalMessage))
+    )
   }, [isPaired, selectedAis, statuses, sendMessage, addLog, addUserMessage, getResponse])
 
   const handleMutual = useCallback(async (prompt?: string) => {
@@ -407,7 +408,7 @@ function App() {
   }, [tabCounts])
 
   return (
-    <div className="flex h-screen bg-[#fafafa]">
+    <div className="flex h-screen bg-[radial-gradient(circle_at_top_left,_#dcfce7,_#eff6ff_38%,_#f8fafc_72%)]">
       <Sidebar
         statuses={statuses}
         selectedAis={selectedAis}
@@ -437,12 +438,15 @@ function App() {
           </div>
         )}
 
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between rounded-2xl border border-cyan-100/80 bg-white/80 px-5 py-3 shadow-[0_20px_50px_rgba(15,23,42,0.08)] backdrop-blur">
           <div className="flex items-center gap-2">
-            <img src="./icons/icon128.png" alt="AI-CrossTalk" className="w-8 h-8" />
-            <h1 className="text-xl font-semibold text-slate-900">AI-CrossTalk</h1>
+            <img src="./icons/icon128.png" alt="G4 AI" className="w-9 h-9 rounded-xl shadow-sm" />
+            <div className="mr-1">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">G4 AI</h1>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-700">Gather the smartest, skip the rest</p>
+            </div>
             <a
-              href="https://github.com/CHOSENX-GPU/ai-roundtable"
+              href="https://github.com/qianzhu18/CrossWise"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-700 transition-colors"
@@ -463,7 +467,7 @@ function App() {
                 }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${isPaired ? 'bg-green-500' : 'bg-amber-500'}`} />
-              {isPaired ? '已配对' : '配对扩展'}
+              {isPaired ? '已配对' : '连接扩展'}
             </button>
             <div className="w-px h-5 bg-slate-200" />
             <button

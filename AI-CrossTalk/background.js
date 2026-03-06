@@ -2,15 +2,11 @@ const AI_URL_PATTERNS = {
   claude: ['claude.ai'],
   chatgpt: ['chat.openai.com', 'chatgpt.com'],
   gemini: ['gemini.google.com'],
-  qwen: ['qianwen.com'],
   grok: ['grok.com', 'x.ai', 'x.com/i/grok', 'x.com/grok', 'twitter.com/i/grok'],
-  deepseek: ['chat.deepseek.com'],
-  kimi: ['www.kimi.com', 'kimi.com'],
-  doubao: ['www.doubao.com', 'doubao.com', 'bot.doubao.com', 'chat.doubao.com'],
-  chatglm: ['chatglm.cn']
 };
 
-const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'qwen', 'grok', 'deepseek', 'kimi', 'doubao', 'chatglm'];
+const AI_TYPES = ['claude', 'chatgpt', 'gemini', 'grok'];
+const MESSAGE_TIMEOUT_MS = 12000;
 
 const tabToAIMap = new Map();
 
@@ -93,7 +89,7 @@ chrome.runtime.onConnectExternal.addListener((port) => {
 });
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name === 'ai-roundtable-web-internal') {
+  if (port.name === 'g4-ai-web-internal') {
     console.log('[AI Panel] Internal web app connection');
     externalPorts.add(port);
 
@@ -372,7 +368,7 @@ async function ensureContentScriptAlive(aiType, tab) {
 }
 
 async function sendMessageToAI(aiType, message, retryCount = 0) {
-  const maxRetries = 4;
+  const maxRetries = 2;
 
   try {
     const tab = await findAITab(aiType);
@@ -392,7 +388,7 @@ async function sendMessageToAI(aiType, message, retryCount = 0) {
         message
       }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout after 30s')), 30000)
+        setTimeout(() => reject(new Error(`Timeout after ${MESSAGE_TIMEOUT_MS}ms`)), MESSAGE_TIMEOUT_MS)
       )
     ]);
 
@@ -410,7 +406,7 @@ async function sendMessageToAI(aiType, message, retryCount = 0) {
     console.log('[AI Panel] Send error for', aiType, ':', err.message);
 
     if (retryCount < maxRetries && err.message.includes('Receiving end does not exist')) {
-      const waitTime = Math.min(1000 * Math.pow(2, retryCount), 3000);
+      const waitTime = Math.min(500 * Math.pow(2, retryCount), 1500);
       console.log('[AI Panel] Retrying send to', aiType, `attempt ${retryCount + 1}, waiting ${waitTime}ms`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return sendMessageToAI(aiType, message, retryCount + 1);

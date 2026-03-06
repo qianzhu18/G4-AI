@@ -3,7 +3,7 @@ import { clsx } from 'clsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AiLogo } from './AiLogo'
-import { AI_GROUPS, AI_DISPLAY_NAMES, AI_TYPES, AI_BRAND_COLORS } from '../lib/constants'
+import { AI_DISPLAY_NAMES, AI_TYPES, AI_BRAND_COLORS } from '../lib/constants'
 import type { AiType, AiStatuses, DiscussionState } from '../lib/types'
 
 interface DiscussionModeProps {
@@ -39,7 +39,7 @@ export function DiscussionMode({
   const [selectedParticipants, setSelectedParticipants] = useState<Set<AiType>>(new Set())
   const [interjectMessage, setInterjectMessage] = useState('')
 
-  const allAis = [...AI_GROUPS['US-AI'], ...AI_GROUPS['CN-AI']]
+  const allAis = [...AI_TYPES]
   const connectedAis = allAis.filter(ai => statuses[ai])
 
   const toggleParticipant = useCallback((ai: AiType) => {
