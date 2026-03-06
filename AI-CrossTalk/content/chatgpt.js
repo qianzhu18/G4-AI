@@ -107,6 +107,7 @@
 
     // Start capturing response after sending
     console.log('[AI Panel] ChatGPT message sent, starting response capture...');
+    pendingBaselineContent = getLatestResponse() || '';
     waitForStreamingComplete();
 
     return true;
@@ -175,6 +176,11 @@
               checkForResponse(node);
             }
           }
+        } else if (mutation.type === 'characterData') {
+          const target = mutation.target?.parentElement;
+          if (target) {
+            checkForResponse(target);
+          }
         }
       }
     });
@@ -184,6 +190,7 @@
       const mainContent = document.querySelector('main') || document.body;
       observer.observe(mainContent, {
         childList: true,
+        characterData: true,
         subtree: true
       });
     };
@@ -198,6 +205,7 @@
   let lastCapturedContent = '';
   let isCapturing = false;
   let captureStartTime = 0;
+  let pendingBaselineContent = '';
 
   function checkForResponse(node) {
     if (isCapturing) return;
@@ -238,10 +246,12 @@
     let stableCount = 0;
     const maxWait = 600000;  // 10 minutes - AI responses can be very long
     const checkInterval = 500;
-    const stableThreshold = 4;  // 2 seconds of stable content
+    const stableThreshold = 3;  // 1.5 seconds stable after stream stops
+    const baselineContent = pendingBaselineContent;
 
     const startTime = Date.now();
-    let firstContentTime = null;  // Track when we first see content
+    let hasSeenStreaming = false;
+    let hasSeenNewContent = false;
 
     try {
       while (Date.now() - startTime < maxWait) {
@@ -252,26 +262,38 @@
 
         await sleep(checkInterval);
 
+        const isStreaming = isGeneratingNow();
         const currentContent = getLatestResponse() || '';
 
-        // Track when content first appears
-        if (currentContent.length > 0 && firstContentTime === null) {
-          firstContentTime = Date.now();
-          console.log('[AI Panel] ChatGPT first content detected, length:', currentContent.length);
+        if (isStreaming) {
+          hasSeenStreaming = true;
+        }
+        if (currentContent.length > 0 && currentContent !== baselineContent) {
+          hasSeenNewContent = true;
         }
 
         // Debug: log every 10 seconds
         const elapsed = Date.now() - startTime;
         if (elapsed % 10000 < checkInterval) {
-          console.log(`[AI Panel] ChatGPT check: contentLen=${currentContent.length}, stableCount=${stableCount}, elapsed=${Math.round(elapsed / 1000)}s`);
+          console.log(`[AI Panel] ChatGPT check: contentLen=${currentContent.length}, streaming=${isStreaming}, stableCount=${stableCount}, elapsed=${Math.round(elapsed / 1000)}s`);
         }
 
-        // Content is stable when content unchanged and has content
+        if (!hasSeenNewContent && !hasSeenStreaming) {
+          previousContent = currentContent;
+          continue;
+        }
+
+        // Never finalize while still streaming
+        if (isStreaming) {
+          stableCount = 0;
+          previousContent = currentContent;
+          continue;
+        }
+
         const contentStable = currentContent === previousContent && currentContent.length > 0;
 
         if (contentStable) {
           stableCount++;
-          // Capture after 4 stable checks (2 seconds of stable content)
           if (stableCount >= stableThreshold) {
             if (currentContent !== lastCapturedContent) {
               lastCapturedContent = currentContent;
@@ -301,33 +323,59 @@
   }
 
   function getLatestResponse() {
-    // Find all assistant messages and get the last one
-    // ChatGPT UI changes frequently, so we try multiple selectors
-    const messageSelectors = [
-      '[data-message-author-role="assistant"] .markdown',
-      '[data-message-author-role="assistant"] [class*="markdown"]',
+    const containerSelectors = [
       '[data-message-author-role="assistant"]',
-      '.agent-turn .markdown',
-      '[class*="agent-turn"] .markdown',
-      '[data-testid*="conversation-turn"]:has([data-message-author-role="assistant"]) .markdown',
-      '[data-testid*="conversation-turn"] .markdown',
-      'article[data-testid*="conversation"] .markdown'
+      '[data-testid*="conversation-turn"]',
+      '.agent-turn',
+      'article'
     ];
 
-    let messages = [];
-    for (const selector of messageSelectors) {
-      messages = document.querySelectorAll(selector);
-      if (messages.length > 0) break;
+    let containers = [];
+    for (const selector of containerSelectors) {
+      containers = Array.from(document.querySelectorAll(selector)).filter(el => {
+        if (selector === '[data-message-author-role="assistant"]') return true;
+        return !!el.querySelector?.('[data-message-author-role="assistant"]');
+      });
+      if (containers.length > 0) break;
     }
 
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      // Capture HTML and convert to Markdown
-      const html = lastMessage.innerHTML.trim();
-      return htmlToMarkdown(html);
+    if (containers.length === 0) {
+      return null;
     }
 
-    return null;
+    const lastContainer = containers[containers.length - 1];
+    const markdownBlocks = Array.from(
+      lastContainer.querySelectorAll('.markdown, [class*="markdown"]')
+    );
+
+    if (markdownBlocks.length > 0) {
+      const segments = markdownBlocks
+        .map(block => block.innerHTML.trim())
+        .filter(Boolean)
+        .map(html => htmlToMarkdown(html).trim())
+        .filter(Boolean);
+
+      if (segments.length > 0) {
+        return segments.join('\n\n');
+      }
+    }
+
+    const plainText = (lastContainer.innerText || '').trim();
+    return plainText || null;
+  }
+
+  function isGeneratingNow() {
+    const selectors = [
+      'button[data-testid="stop-button"]',
+      'button[aria-label*="Stop"]',
+      'button[aria-label*="停止"]',
+      'button[title*="Stop"]'
+    ];
+
+    return selectors.some(selector => {
+      const el = document.querySelector(selector);
+      return !!el && isVisible(el);
+    });
   }
 
   // Utility functions
