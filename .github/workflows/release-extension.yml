@@ -41,9 +41,11 @@ jobs:
           VERSION="$(node -p "require('./AI-CrossTalk/manifest.json').version")"
           PACKAGE_NAME="g4-ai-extension-v${VERSION}"
           ZIP_PATH="${GITHUB_WORKSPACE}/release/${PACKAGE_NAME}.zip"
+          NOTES_PATH="${GITHUB_WORKSPACE}/release/release-notes.md"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "zip_path=${ZIP_PATH}" >> "$GITHUB_OUTPUT"
+          echo "notes_path=${NOTES_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Verify tag matches manifest version
         if: startsWith(github.ref, 'refs/tags/')
@@ -72,10 +74,12 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           ASSET="${{ steps.meta.outputs.zip_path }}"
+          NOTES="${{ steps.meta.outputs.notes_path }}"
           TITLE="G4 AI v${{ steps.meta.outputs.version }}"
 
           if gh release view "${TAG}" >/dev/null 2>&1; then
             gh release upload "${TAG}" "${ASSET}" --clobber
+            gh release edit "${TAG}" --title "${TITLE}" --notes-file "${NOTES}"
           else
-            gh release create "${TAG}" "${ASSET}" --title "${TITLE}" --generate-notes
+            gh release create "${TAG}" "${ASSET}" --title "${TITLE}" --notes-file "${NOTES}"
           fi

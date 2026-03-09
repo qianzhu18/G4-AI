@@ -5,6 +5,7 @@ web/node_modules/
 # Build outputs
 web/dist/
 release/
+test-artifacts/
 *.zip
 
 # IDE

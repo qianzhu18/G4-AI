@@ -13,6 +13,7 @@ const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
 const version = manifest.version
 const packageName = `g4-ai-extension-v${version}`
 const packageDir = path.join(releaseRoot, packageName)
+const releaseNotesPath = path.join(releaseRoot, 'release-notes.md')
 
 await rm(releaseRoot, { recursive: true, force: true })
 await mkdir(releaseRoot, { recursive: true })
@@ -52,6 +53,33 @@ const installGuide = [
 
 await writeFile(path.join(packageDir, 'INSTALL.txt'), installGuide, 'utf8')
 
+const releaseNotes = [
+  `# G4 AI v${version}`,
+  '',
+  '## Download And Install',
+  '',
+  `1. Download \`${packageName}.zip\` from the Assets section below.`,
+  '2. Unzip it on your computer.',
+  '3. Open `chrome://extensions/` in Chrome or Edge.',
+  '4. Turn on Developer mode.',
+  '5. Click `Load unpacked`.',
+  `6. Select the unzipped folder \`${packageName}\`.`,
+  '',
+  '## Important',
+  '',
+  '- Do not download `Source code (zip)` or `Source code (tar.gz)` if you are a normal user.',
+  '- The release asset already contains the built extension and does not require `npm install` or `npm run build`.',
+  '- Open and log in to Claude / ChatGPT / Gemini / Grok first, then use the extension.',
+  '',
+  '## Included Asset',
+  '',
+  `- \`${packageName}.zip\`: ready-to-import unpacked extension package`,
+  '',
+].join('\n')
+
+await writeFile(releaseNotesPath, releaseNotes, 'utf8')
+
 console.log(`Prepared release folder: ${path.relative(repoRoot, packageDir)}`)
 console.log(`Version: ${version}`)
 console.log(`Package name: ${packageName}`)
+console.log(`Release notes: ${path.relative(repoRoot, releaseNotesPath)}`)
