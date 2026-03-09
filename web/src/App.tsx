@@ -21,12 +21,54 @@ const createEmptyConversations = (): Conversations => {
   return convs as Conversations
 }
 
+const isDiscussionFixtureRoute = () => {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  return new URLSearchParams(window.location.search).get('fixture') === 'discussion'
+}
+
+const createFixtureStatuses = () =>
+  AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: true }), {} as Record<AiType, boolean>)
+
+const createFixtureTabCounts = () =>
+  AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: 1 }), {} as Record<AiType, number>)
+
+const buildDiscussionFixtureResponse = (aiType: AiType, message: string) => {
+  const topicMatch = message.match(/讨论主题：([^\n]+)/) || message.match(/请就以下主题发表你的观点：\n\n([\s\S]+?)\n\n要求：/)
+  const topic = topicMatch?.[1]?.trim() || '未识别主题'
+  const citedAis = [...message.matchAll(/【([^】]+) 的(?:上一轮)?观点】/g)].map(match => match[1])
+  const citedLabel = citedAis.length > 0 ? citedAis.join('、') : '当前轮次没有引用其他参与者'
+
+  return [
+    `### ${AI_DISPLAY_NAMES[aiType]}（讨论测试回复）`,
+    '',
+    `- 主题：${topic}`,
+    `- 我收到的上下文：${citedLabel}`,
+    '',
+    citedAis.length > 0
+      ? `我已经基于 ${citedLabel} 的上一轮观点继续回应，因此讨论链路已经把信息传进来了。`
+      : '这是开场立场陈述，用来验证第一轮讨论启动正常。',
+    '',
+    '1. 这是自动化测试生成的占位回复。',
+    '2. 它的目的不是评估内容质量，而是验证消息传递和版面渲染。',
+  ].join('\n')
+}
+
 function App() {
-  const [mode, setMode] = useState<Mode>('normal')
-  const [selectedAis, setSelectedAis] = useState<Set<AiType>>(new Set(['claude', 'chatgpt']))
+  const isDiscussionFixture = isDiscussionFixtureRoute()
+  const [mode, setMode] = useState<Mode>(() => isDiscussionFixture ? 'discussion' : 'normal')
+  const [selectedAis, setSelectedAis] = useState<Set<AiType>>(
+    () => new Set(isDiscussionFixture ? AI_TYPES : ['claude', 'chatgpt'])
+  )
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [conversations, setConversations] = useState<Conversations>(createEmptyConversations())
   const conversationsRef = useRef(conversations)
+  const fixtureResponsesRef = useRef<Record<AiType, string | null>>(
+    AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: null }), {} as Record<AiType, string | null>)
+  )
+  const fixtureStatuses = useMemo(() => createFixtureStatuses(), [])
+  const fixtureTabCounts = useMemo(() => createFixtureTabCounts(), [])
 
   // 保持 ref 同步以便在回调中访问最新状态
   useEffect(() => {
@@ -63,6 +105,45 @@ function App() {
     }))
   }, [])
 
+  const upsertAssistantMessage = useCallback((aiType: AiType, content: string) => {
+    setConversations(prev => {
+      const msgs = prev[aiType] || []
+      const lastMsg = msgs[msgs.length - 1]
+
+      if (
+        lastMsg?.role === 'assistant' &&
+        (Date.now() - new Date(lastMsg.timestamp).getTime() < 60000)
+      ) {
+        if (lastMsg.content === content) {
+          return prev
+        }
+
+        const nextMsgs = [...msgs]
+        nextMsgs[nextMsgs.length - 1] = {
+          ...lastMsg,
+          content,
+        }
+
+        return {
+          ...prev,
+          [aiType]: nextMsgs,
+        }
+      }
+
+      const newMsg: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content,
+        timestamp: new Date(),
+      }
+
+      return {
+        ...prev,
+        [aiType]: [...msgs, newMsg],
+      }
+    })
+  }, [])
+
   const clearConversations = useCallback((aiTypes: AiType[]) => {
     setConversations(prev => {
       const next = { ...prev }
@@ -91,45 +172,7 @@ function App() {
       addLog(`${aiType}: ${connected ? '已连接' : '已断开'}`, connected ? 'success' : 'info')
     },
     onResponseCaptured: (aiType, content) => {
-      setConversations(prev => {
-        const msgs = prev[aiType] || []
-        const lastMsg = msgs[msgs.length - 1]
-
-        // 原子检查：如果最后一条是 assistant 且在 60 秒内，则更新
-        if (lastMsg?.role === 'assistant' &&
-          (Date.now() - new Date(lastMsg.timestamp).getTime() < 60000)) {
-          // 如果内容未变，不触发更新
-          if (lastMsg.content === content) return prev
-
-          const newMsgs = [...msgs]
-          newMsgs[newMsgs.length - 1] = {
-            ...lastMsg,
-            content
-          }
-          return {
-            ...prev,
-            [aiType]: newMsgs
-          }
-        }
-
-        // 否则添加新消息
-        const newMsg: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content,
-          timestamp: new Date()
-        }
-
-        // 仅在添加新消息时记录日志（避免刷屏）
-        // 注意：这里是副作用，但在 state updater 中执行副作用不推荐，但为了简便且仅是 UI log，尚可接受
-        // 或者移到外部，但外部拿不到准确的判断结果
-        // 暂且移除 "收到回复" 的高频日志，只在连接/发送时记录
-
-        return {
-          ...prev,
-          [aiType]: [...msgs, newMsg]
-        }
-      })
+      upsertAssistantMessage(aiType, content)
     },
     onSendResult: (aiType, success, error) => {
       if (success) {
@@ -144,8 +187,16 @@ function App() {
   })
 
   const { statuses, tabCounts, updateStatus, replaceStatuses } = useAiStatus()
+  const effectiveStatuses = isDiscussionFixture ? fixtureStatuses : statuses
+  const effectiveTabCounts = isDiscussionFixture ? fixtureTabCounts : tabCounts
+  const effectiveIsPaired = isDiscussionFixture ? true : isPaired
 
   useEffect(() => {
+    if (isDiscussionFixture) {
+      setShowPairing(false)
+      return
+    }
+
     if (!isPaired) {
       setShowPairing(true)
       return
@@ -170,7 +221,24 @@ function App() {
     return () => {
       active = false
     }
-  }, [isPaired, isConnected, connect, getStatus, replaceStatuses])
+  }, [isDiscussionFixture, isPaired, isConnected, connect, getStatus, replaceStatuses])
+
+  const sendMessageForDiscussion = useCallback(async (aiType: AiType, message: string) => {
+    if (isDiscussionFixture) {
+      fixtureResponsesRef.current[aiType] = buildDiscussionFixtureResponse(aiType, message)
+      return { success: true }
+    }
+
+    return sendMessage(aiType, message)
+  }, [isDiscussionFixture, sendMessage])
+
+  const getResponseForDiscussion = useCallback(async (aiType: AiType) => {
+    if (isDiscussionFixture) {
+      return fixtureResponsesRef.current[aiType] || null
+    }
+
+    return getResponse(aiType)
+  }, [isDiscussionFixture, getResponse])
 
   const handleSend = useCallback(async (message: string, mentionedAis?: AiType[]) => {
     if (!isPaired) {
@@ -250,7 +318,7 @@ function App() {
       return
     }
 
-    const targets = Array.from(selectedAis).filter(ai => statuses[ai])
+    const targets = Array.from(selectedAis).filter(ai => effectiveStatuses[ai])
     if (targets.length < 2) {
       addLog('互评需要至少 2 个已连接的 AI', 'error')
       return
@@ -284,7 +352,7 @@ function App() {
     }
 
     await Promise.allSettled(messageTasks)
-  }, [isPaired, selectedAis, statuses, getResponse, sendMessage, addLog, addUserMessage])
+  }, [isPaired, selectedAis, effectiveStatuses, getResponse, sendMessage, addLog, addUserMessage])
 
   const handleCross = useCallback(async (targetAis: AiType[], sourceAi: AiType, prompt: string) => {
     if (!isPaired) {
@@ -301,7 +369,7 @@ function App() {
 
     const crossPrompt = `【${sourceAi.toUpperCase()} 的回复】\n${sourceResponse}\n\n${prompt}`
 
-    const availableTargets = targetAis.filter(target => statuses[target])
+    const availableTargets = targetAis.filter(target => effectiveStatuses[target])
     for (const target of availableTargets) {
       addUserMessage(target, crossPrompt)
     }
@@ -309,7 +377,7 @@ function App() {
     await Promise.allSettled(
       availableTargets.map(target => sendMessage(target, crossPrompt))
     )
-  }, [isPaired, statuses, getResponse, sendMessage, addLog, addUserMessage])
+  }, [isPaired, effectiveStatuses, getResponse, sendMessage, addLog, addUserMessage])
 
   const handleNewConversation = useCallback(async () => {
     if (!isPaired) {
@@ -318,7 +386,7 @@ function App() {
       return
     }
 
-    const targets = Array.from(selectedAis).filter(ai => statuses[ai])
+    const targets = Array.from(selectedAis).filter(ai => effectiveStatuses[ai])
     if (targets.length === 0) {
       addLog('没有可用的目标 AI', 'error')
       return
@@ -327,7 +395,7 @@ function App() {
     addLog(`为 ${targets.join(', ')} 开启新对话`, 'info')
     clearConversations(targets)
     await newConversation(targets)
-  }, [isPaired, selectedAis, statuses, newConversation, addLog, clearConversations])
+  }, [isPaired, selectedAis, effectiveStatuses, newConversation, addLog, clearConversations])
 
   const handleRefreshConversations = useCallback(async () => {
     if (!isPaired) {
@@ -335,7 +403,7 @@ function App() {
       return
     }
 
-    const targets = Array.from(selectedAis).filter(ai => statuses[ai])
+    const targets = Array.from(selectedAis).filter(ai => effectiveStatuses[ai])
     if (targets.length === 0) {
       addLog('没有可用的目标 AI', 'error')
       return
@@ -375,7 +443,7 @@ function App() {
     }
 
     addLog('对话已刷新', 'success')
-  }, [isPaired, selectedAis, statuses, getResponse, conversations, addLog])
+  }, [isPaired, selectedAis, effectiveStatuses, getResponse, conversations, addLog])
 
   const handleToggleAi = useCallback((ai: AiType) => {
     setSelectedAis(prev => {
@@ -408,19 +476,19 @@ function App() {
   }, [addLog, clearConversations, newConversation])
 
   const duplicateTabAis = useMemo(() => {
-    return Object.entries(tabCounts)
+    return Object.entries(effectiveTabCounts)
       .filter(([, count]) => count > 1)
       .map(([ai, count]) => ({ ai: ai as AiType, count }))
-  }, [tabCounts])
+  }, [effectiveTabCounts])
 
   return (
     <div className="flex h-screen bg-[radial-gradient(circle_at_top_left,_#dcfce7,_#eff6ff_38%,_#f8fafc_72%)]">
       <Sidebar
-        statuses={statuses}
+        statuses={effectiveStatuses}
         selectedAis={selectedAis}
         onToggleAi={handleToggleAi}
-        isConnected={isConnected}
-        isPaired={isPaired}
+        isConnected={isDiscussionFixture ? true : isConnected}
+        isPaired={effectiveIsPaired}
         onNewConversation={handleSidebarNewConversation}
       />
 
@@ -500,7 +568,7 @@ function App() {
         {mode === 'normal' ? (
           <>
             <AiGrid
-              statuses={statuses}
+              statuses={effectiveStatuses}
               selectedAis={selectedAis}
               conversations={conversations}
             />
@@ -511,53 +579,20 @@ function App() {
               onNewConversation={handleNewConversation}
               onRefresh={handleRefreshConversations}
               selectedAis={selectedAis}
-              statuses={statuses}
-              disabled={!isPaired}
+              statuses={effectiveStatuses}
+              disabled={!effectiveIsPaired}
             />
           </>
         ) : (
           <DiscussionMode
-            statuses={statuses}
-            isPaired={isPaired}
-            sendMessage={sendMessage}
-            getResponse={getResponse}
+            statuses={effectiveStatuses}
+            conversations={conversations}
+            isPaired={effectiveIsPaired}
+            sendMessage={sendMessageForDiscussion}
+            getResponse={getResponseForDiscussion}
             addLog={addLog}
-            onResponseCaptured={(aiType, content) => {
-              setConversations(prev => {
-                const msgs = prev[aiType] || []
-                const lastMsg = msgs[msgs.length - 1]
-
-                // 原子检查：如果最后一条是 assistant 且在 60 秒内，则更新
-                if (lastMsg?.role === 'assistant' &&
-                  (Date.now() - new Date(lastMsg.timestamp).getTime() < 60000)) {
-                  // 如果内容未变，不触发更新
-                  if (lastMsg.content === content) return prev
-
-                  const newMsgs = [...msgs]
-                  newMsgs[newMsgs.length - 1] = {
-                    ...lastMsg,
-                    content
-                  }
-                  return {
-                    ...prev,
-                    [aiType]: newMsgs
-                  }
-                }
-
-                // 否则添加新消息
-                const newMsg: Message = {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content,
-                  timestamp: new Date()
-                }
-
-                return {
-                  ...prev,
-                  [aiType]: [...msgs, newMsg]
-                }
-              })
-            }}
+            addUserMessage={addUserMessage}
+            onResponseCaptured={upsertAssistantMessage}
           />
         )}
       </main>

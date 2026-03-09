@@ -62,7 +62,6 @@ export interface DiscussionState {
   history: DiscussionEntry[]
   pendingResponses: Set<AiType>
   roundType: 'initial' | 'cross-eval' | 'counter' | null
-  responses: Record<AiType, string>
 }
 
 export interface DiscussionEntry {

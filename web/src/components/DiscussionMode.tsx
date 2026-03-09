@@ -1,16 +1,17 @@
 import { useState, useCallback } from 'react'
 import { clsx } from 'clsx'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { AiLogo } from './AiLogo'
-import { AI_DISPLAY_NAMES, AI_TYPES, AI_BRAND_COLORS } from '../lib/constants'
-import type { AiType, AiStatuses, DiscussionState } from '../lib/types'
+import { AiCard } from './AiCard'
+import { AI_DISPLAY_NAMES, AI_TYPES } from '../lib/constants'
+import type { AiType, AiStatuses, Conversations, DiscussionState } from '../lib/types'
 
 interface DiscussionModeProps {
   statuses: AiStatuses
+  conversations: Conversations
   isPaired: boolean
   sendMessage: (aiType: AiType, message: string) => Promise<{ success: boolean; error?: string }>
   getResponse: (aiType: AiType) => Promise<string | null>
+  addUserMessage: (aiType: AiType, content: string) => void
   addLog: (message: string, type?: 'info' | 'success' | 'error' | 'warning') => void
   onResponseCaptured?: (aiType: AiType, content: string) => void
 }
@@ -23,7 +24,6 @@ const initialState: DiscussionState = {
   history: [],
   pendingResponses: new Set(),
   roundType: null,
-  responses: AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: '' }), {}) as Record<AiType, string>,
 }
 
 const RESPONSE_SETTLE_MS = 3500
@@ -31,9 +31,11 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export function DiscussionMode({
   statuses,
+  conversations,
   isPaired,
   sendMessage,
   getResponse,
+  addUserMessage,
   addLog,
   onResponseCaptured,
 }: DiscussionModeProps) {
@@ -45,13 +47,19 @@ export function DiscussionMode({
   const allAis = [...AI_TYPES]
   const connectedAis = allAis.filter(ai => statuses[ai])
 
+  const getLatestAssistantResponse = useCallback((ai: AiType) => {
+    const messages = conversations[ai] || []
+    return [...messages].reverse().find(message => message.role === 'assistant')?.content ?? null
+  }, [conversations])
+
   const collectResponses = useCallback(async (participants: AiType[]): Promise<Partial<Record<AiType, string>>> => {
     const fetched = await Promise.all(
       participants.map(async (ai) => {
         try {
-          return { ai, response: await getResponse(ai) }
+          const response = await getResponse(ai)
+          return { ai, response: response || getLatestAssistantResponse(ai) }
         } catch {
-          return { ai, response: null }
+          return { ai, response: getLatestAssistantResponse(ai) }
         }
       })
     )
@@ -61,14 +69,6 @@ export function DiscussionMode({
     )
 
     if (updates.length > 0) {
-      setState(prev => {
-        const merged = { ...prev.responses }
-        for (const { ai, response } of updates) {
-          merged[ai] = response
-        }
-        return { ...prev, responses: merged }
-      })
-
       for (const { ai, response } of updates) {
         onResponseCaptured?.(ai, response)
       }
@@ -78,7 +78,7 @@ export function DiscussionMode({
       acc[ai] = response
       return acc
     }, {} as Partial<Record<AiType, string>>)
-  }, [getResponse, onResponseCaptured])
+  }, [getResponse, getLatestAssistantResponse, onResponseCaptured])
 
   const toggleParticipant = useCallback((ai: AiType) => {
     setSelectedParticipants(prev => {
@@ -118,19 +118,21 @@ export function DiscussionMode({
       history: [],
       pendingResponses: new Set(participants),
       roundType: 'initial',
-      responses: AI_TYPES.reduce((acc, ai) => ({ ...acc, [ai]: '' }), {}) as Record<AiType, string>,
     })
 
     addLog(`开始讨论: ${participants.map(p => AI_DISPLAY_NAMES[p]).join(' vs ')}`, 'info')
 
     const initialPrompt = `请就以下主题发表你的观点：\n\n${topic.trim()}\n\n要求：\n1. 清晰阐述你的立场\n2. 提供支持你观点的论据\n3. 保持开放态度，准备与对方进行深入讨论`
 
-    await Promise.allSettled(participants.map(ai => sendMessage(ai, initialPrompt)))
+    await Promise.allSettled(participants.map(async (ai) => {
+      addUserMessage(ai, initialPrompt)
+      return sendMessage(ai, initialPrompt)
+    }))
 
     // Wait for initial responses and capture them
     await sleep(RESPONSE_SETTLE_MS)
     await collectResponses(participants)
-  }, [isPaired, selectedParticipants, topic, sendMessage, addLog, collectResponses])
+  }, [isPaired, selectedParticipants, topic, addUserMessage, sendMessage, addLog, collectResponses])
 
   const handleTopicKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -156,33 +158,28 @@ export function DiscussionMode({
     const responses = await collectResponses(state.participants)
     const roundTasks: Promise<unknown>[] = []
 
-    // For 2 participants: cross-evaluate each other
-    if (state.participants.length === 2) {
-      const [ai1, ai2] = state.participants
-      if (responses[ai1]) {
-        const evalPrompt = `【${AI_DISPLAY_NAMES[ai1]} 的观点】\n${responses[ai1]}\n\n请评价上述观点，指出你认同和不认同的地方，并进一步阐述你的立场。`
-        roundTasks.push(sendMessage(ai2, evalPrompt))
+    for (const targetAi of state.participants) {
+      const othersContent = state.participants
+        .filter(ai => ai !== targetAi && responses[ai])
+        .map(ai => `【${AI_DISPLAY_NAMES[ai]} 的上一轮观点】\n${responses[ai]}`)
+        .join('\n\n')
+
+      if (!othersContent) {
+        continue
       }
-      if (responses[ai2]) {
-        const evalPrompt = `【${AI_DISPLAY_NAMES[ai2]} 的观点】\n${responses[ai2]}\n\n请评价上述观点，指出你认同和不认同的地方，并进一步阐述你的立场。`
-        roundTasks.push(sendMessage(ai1, evalPrompt))
-      }
-    } else {
-      // For 3-4 participants: cross-evaluate with others
-      for (let i = 0; i < state.participants.length; i++) {
-        for (let j = i + 1; j < state.participants.length; j++) {
-          const ai1 = state.participants[i]
-          const ai2 = state.participants[j]
-          if (responses[ai1]) {
-            const evalPrompt = `【${AI_DISPLAY_NAMES[ai1]} 的观点】\n${responses[ai1]}\n\n请评价上述观点，并阐述你的立场。`
-            roundTasks.push(sendMessage(ai2, evalPrompt))
-          }
-          if (responses[ai2]) {
-            const evalPrompt = `【${AI_DISPLAY_NAMES[ai2]} 的观点】\n${responses[ai2]}\n\n请评价上述观点，并阐述你的立场。`
-            roundTasks.push(sendMessage(ai1, evalPrompt))
-          }
-        }
-      }
+
+      const evalPrompt = [
+        `讨论主题：${state.topic}`,
+        `当前是第 ${newRound} 轮讨论。`,
+        '请阅读其他参与者在上一轮的最新观点。',
+        '先指出你认同和不认同的地方，再给出你的进一步回应。',
+        '如果你的立场发生变化，请明确说明原因。',
+        '',
+        othersContent,
+      ].join('\n')
+
+      addUserMessage(targetAi, evalPrompt)
+      roundTasks.push(sendMessage(targetAi, evalPrompt))
     }
 
     await Promise.allSettled(roundTasks)
@@ -190,7 +187,7 @@ export function DiscussionMode({
     // Wait for cross-evaluation responses and capture them
     await sleep(RESPONSE_SETTLE_MS)
     await collectResponses(state.participants)
-  }, [state, sendMessage, addLog, collectResponses])
+  }, [state, addUserMessage, sendMessage, addLog, collectResponses])
 
   const sendInterject = useCallback(async () => {
     if (!state.active || !state.participants || !interjectMessage.trim()) return
@@ -198,7 +195,10 @@ export function DiscussionMode({
     addLog('发送插话给所有参与者', 'info')
 
     await Promise.allSettled(
-      state.participants.map(ai => sendMessage(ai, interjectMessage.trim()))
+      state.participants.map(async ai => {
+        addUserMessage(ai, interjectMessage.trim())
+        return sendMessage(ai, interjectMessage.trim())
+      })
     )
 
     setInterjectMessage('')
@@ -206,7 +206,7 @@ export function DiscussionMode({
     // Wait for interjection responses and capture them
     await sleep(RESPONSE_SETTLE_MS)
     await collectResponses(state.participants)
-  }, [state, interjectMessage, sendMessage, addLog, collectResponses])
+  }, [state, interjectMessage, addUserMessage, sendMessage, addLog, collectResponses])
 
   const handleInterjectKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -255,8 +255,9 @@ export function DiscussionMode({
     }
 
     addLog('生成讨论总结', 'info')
+    addUserMessage(summarizer, summaryPrompt)
     await sendMessage(summarizer, summaryPrompt)
-  }, [state, sendMessage, addLog, statuses, allAis, collectResponses])
+  }, [state, addUserMessage, sendMessage, addLog, statuses, allAis, collectResponses])
 
   const refreshResponses = useCallback(async () => {
     if (!state.active || !state.participants) return
@@ -294,6 +295,7 @@ export function DiscussionMode({
                   key={ai}
                   onClick={() => toggleParticipant(ai)}
                   disabled={!selectedParticipants.has(ai) && selectedParticipants.size >= 4}
+                  data-testid={`discussion-participant-${ai}`}
                   className={clsx(
                     'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
                     selectedParticipants.has(ai)
@@ -319,6 +321,7 @@ export function DiscussionMode({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               onKeyDown={handleTopicKeyDown}
+              data-testid="discussion-topic-input"
               placeholder="例如：人工智能会取代人类的工作吗？ (Enter 开始讨论, Shift+Enter 换行)"
               rows={4}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
@@ -328,6 +331,7 @@ export function DiscussionMode({
           <button
             onClick={startDiscussion}
             disabled={!isPaired || selectedParticipants.size < 2 || selectedParticipants.size > 4 || !topic.trim()}
+            data-testid="discussion-start-button"
             className="w-full py-2.5 px-4 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             开始讨论
@@ -360,53 +364,29 @@ export function DiscussionMode({
       </div>
 
       <div className="flex-1 overflow-hidden p-4">
-        {/* AI回答显示区域 - 使用网格布局，占满中间区域 */}
-        <div className={clsx(
-          "grid gap-4 h-full min-h-0",
-          state.participants?.length === 2 ? "grid-cols-2" : "",
-          state.participants?.length === 3 ? "grid-cols-3" : "",
-          state.participants?.length === 4 ? "grid-cols-2 grid-rows-2" : ""
-        )}>
-          {state.participants?.map(ai => {
-            const brandColor = AI_BRAND_COLORS[ai]
-            const isFourParticipants = state.participants?.length === 4
-
+        <div
+          data-testid="discussion-grid"
+          className={clsx(
+          'grid gap-4 h-full min-h-0 auto-rows-[minmax(0,1fr)]',
+          state.participants?.length === 2 && 'grid-cols-2',
+          state.participants?.length === 3 && 'grid-cols-2 grid-rows-2',
+          state.participants?.length === 4 && 'grid-cols-2 grid-rows-2'
+          )}>
+          {state.participants?.map((ai, index) => {
             return (
               <div
                 key={ai}
+                data-testid={`discussion-card-${ai}`}
                 className={clsx(
-                  "flex flex-col rounded-lg bg-white border border-slate-200 overflow-hidden",
-                  isFourParticipants ? "h-1/2" : "h-full"
+                  'min-h-0 h-full',
+                  state.participants?.length === 3 && index === 2 && 'col-span-2'
                 )}
-                style={{
-                  boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)',
-                }}
               >
-                <div
-                  className="flex items-center gap-2 px-3 py-2 border-b border-slate-100"
-                  style={{ borderBottomColor: `${brandColor}20` }}
-                >
-                  <AiLogo aiType={ai} size={20} />
-                  <span className="font-medium text-slate-900 text-sm">{AI_DISPLAY_NAMES[ai]}</span>
-                  <span className={clsx(
-                    "ml-auto w-2 h-2 rounded-full",
-                    statuses[ai] ? "bg-green-500" : "bg-slate-300"
-                  )} />
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
-                  {!state.responses[ai] ? (
-                    <div className="flex items-center justify-center h-full text-sm text-slate-400 italic">
-                      {statuses[ai] ? '等待回答...' : '未连接'}
-                    </div>
-                  ) : (
-                    <div className="prose prose-sm prose-slate max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {state.responses[ai]}
-                      </ReactMarkdown>
-                    </div>
-                  )}
-                </div>
+                <AiCard
+                  aiType={ai}
+                  connected={statuses[ai]}
+                  messages={conversations[ai]}
+                />
               </div>
             )
           })}
@@ -423,6 +403,7 @@ export function DiscussionMode({
             value={interjectMessage}
             onChange={(e) => setInterjectMessage(e.target.value)}
             onKeyDown={handleInterjectKeyDown}
+            data-testid="discussion-interject-input"
             placeholder="输入你想对双方说的话... (Enter 发送, Shift+Enter 换行)"
             rows={2}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
@@ -431,6 +412,7 @@ export function DiscussionMode({
             <button
               onClick={sendInterject}
               disabled={!interjectMessage.trim()}
+              data-testid="discussion-send-interject"
               className="px-3 py-1.5 text-sm font-medium text-white bg-slate-900 rounded hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               发送给所有参与者
@@ -442,12 +424,14 @@ export function DiscussionMode({
         <div className="flex justify-center gap-3">
           <button
             onClick={nextRound}
+            data-testid="discussion-next-round"
             className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
           >
             下一轮
           </button>
           <button
             onClick={refreshResponses}
+            data-testid="discussion-refresh"
             className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
             title="重新获取所有参与者的最新回答"
           >
@@ -455,6 +439,7 @@ export function DiscussionMode({
           </button>
           <button
             onClick={generateSummary}
+            data-testid="discussion-summary"
             className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
           >
             生成总结
