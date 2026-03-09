@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "G4 AI",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Gather the smartest, skip the rest",
   "permissions": [
     "sidePanel",

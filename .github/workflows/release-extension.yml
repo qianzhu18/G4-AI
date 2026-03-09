@@ -1,0 +1,81 @@
+name: Release Extension
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build extension web assets
+        working-directory: web
+        run: npm run build
+
+      - name: Prepare release directory
+        run: node scripts/prepare-release.mjs
+
+      - name: Resolve package metadata
+        id: meta
+        run: |
+          VERSION="$(node -p "require('./AI-CrossTalk/manifest.json').version")"
+          PACKAGE_NAME="g4-ai-extension-v${VERSION}"
+          ZIP_PATH="${GITHUB_WORKSPACE}/release/${PACKAGE_NAME}.zip"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "zip_path=${ZIP_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          EXPECTED_TAG="v${{ steps.meta.outputs.version }}"
+          if [ "${GITHUB_REF_NAME}" != "${EXPECTED_TAG}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match manifest version ${EXPECTED_TAG}"
+            exit 1
+          fi
+
+      - name: Create release zip
+        run: |
+          cd release
+          zip -r "${{ steps.meta.outputs.package_name }}.zip" "${{ steps.meta.outputs.package_name }}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.package_name }}
+          path: ${{ steps.meta.outputs.zip_path }}
+
+      - name: Publish GitHub Release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          ASSET="${{ steps.meta.outputs.zip_path }}"
+          TITLE="G4 AI v${{ steps.meta.outputs.version }}"
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "${ASSET}" --clobber
+          else
+            gh release create "${TAG}" "${ASSET}" --title "${TITLE}" --generate-notes
+          fi

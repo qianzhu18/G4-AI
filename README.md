@@ -2,191 +2,358 @@
 
 > Gather the smartest, skip the rest.
 
-G4 AI 是一个 Chrome 插件工作台：把多个海外 AI 网页会话拉到一个独立控制台中并排对比，支持快速新对话、互评、交叉评价与讨论模式。
+G4 AI 是一个 Chrome / Edge 插件工作台：把多个海外 AI 网页会话拉到一个独立控制台中并排对比，支持普通群发、互评、定向交叉评审和讨论模式。
 
----
+当前支持：
 
-## 界面预览
+- Claude
+- ChatGPT
+- Gemini
+- Grok
 
-![G4 AI 控制台预览](https://img.qianzhu.me/2026/03/09f056d91c2c1842f08ac5a68e0b374b.png)
+## 目标安装方式
 
-![G4 AI 配置参考](https://img.qianzhu.me/2026/03/046b0689a48a71f7866c9f2eb278cdd2.png)
+这个项目现在以“别人不需要跑任何命令，只要从 GitHub 下载现成包并导入浏览器”作为发布标准。
 
----
+对普通用户来说：
 
-## 当前状态（2026-03-07）
+- 不需要 Node.js
+- 不需要 `npm install`
+- 不需要 `npm run build`
+- 不需要本地跑 `localhost`
 
-- 品牌已统一为 `G4 AI`
-- 稳定模型仅保留 4 个：`Claude`、`ChatGPT`、`Gemini`、`Grok`
-- 国内模型链路已移除（避免不稳定）
-- 独立控制台窗口可用（不依赖网站 favicon）
-- 已完成一轮低延迟优化（并行发送、并行抓取、标签缓存、健康缓存）
+用户只需要：
 
----
+1. 从 GitHub Release 下载现成 zip
+2. 解压
+3. 打开 `chrome://extensions/`
+4. 点击 `Load unpacked`
+5. 选择解压后的扩展文件夹
 
-## 支持平台
+## 给普通用户的安装方式
 
-- **Claude**（Anthropic）
-- **ChatGPT**（OpenAI）
-- **Gemini**（Google）
-- **Grok**（xAI）
+### 第一步：去 GitHub Releases 下载
 
----
+进入项目的 `Releases` 页面，下载发布资产：
 
-## 快速开始（小白版）
-
-### 1）拉代码
-
-```bash
-git clone https://github.com/qianzhu18/G4-AI.git
-cd G4-AI/AI-CrossTalk
+```text
+g4-ai-extension-vX.Y.Z.zip
 ```
 
-> 如果你本地还在旧地址，也可以继续用 `https://github.com/qianzhu18/CrossWise.git`。
+这是已经构建好的可安装版本。
 
-### 2）构建前端资源
+不要优先下载下面这两种：
 
-```bash
-cd web
-npm install
-npm run build
-cd ..
+- `Source code (zip)`
+- `Source code (tar.gz)`
+
+因为它们是源码归档，不是面向普通用户的推荐安装包。
+
+### 第二步：解压 zip
+
+解压后，你会得到一个文件夹，名称类似：
+
+```text
+g4-ai-extension-v1.0.1/
 ```
 
-### 3）加载插件到 Chrome
+这个文件夹里应该直接能看到：
+
+```text
+manifest.json
+background.js
+content/
+sidepanel/
+icons/
+web/
+INSTALL.txt
+```
+
+只要 `manifest.json` 在这个目录的第一层，就说明你选对了。
+
+### 第三步：在 Chrome / Edge 中导入
 
 1. 打开 `chrome://extensions/`
-2. 打开右上角「开发者模式」
-3. 点击「加载已解压的扩展程序」
-4. 选择目录：`G4-AI/AI-CrossTalk/AI-CrossTalk`
+2. 打开右上角“开发者模式”
+3. 点击 `Load unpacked`
+4. 选择刚才解压出来的文件夹
 
-### 4）开始使用
+导入成功后，扩展列表里会出现 `G4 AI`。
 
-1. 点击浏览器插件图标，打开侧边栏
-2. 点击「打开控制台」（会弹出独立窗口）
-3. 在左侧勾选已连接 AI，输入消息发送
+### 第四步：打开 AI 网页并登录
 
----
+至少打开并登录一个支持的平台：
 
-## 核心指令说明
+- `https://claude.ai/`
+- `https://chatgpt.com/` 或 `https://chat.openai.com/`
+- `https://gemini.google.com/`
+- `https://grok.com/` 或 `https://x.ai/`
 
-### `/mutual` 是什么？
+建议直接进入聊天页，不要只停留在首页或登录中间页。
 
-`/mutual` 会让当前选中的 AI 互相评审彼此的回答，不是简单群发同一句话。
+### 第五步：开始使用
 
-工作流程：
+1. 点击浏览器工具栏里的 `G4 AI`
+2. 打开侧边栏
+3. 在侧边栏里点击“打开控制台”
+4. 在控制台勾选 AI，输入问题并发送
 
-1. 先抓取每个已选 AI 的最新回答
-2. 给每个 AI 拼接“其他 AI 的回答上下文”
-3. 让每个 AI 输出自己的评审与补充观点
+## 安装成功的标准
 
-常见用法：
+满足下面 4 条，就说明别人电脑上的安装已经成功：
+
+1. 扩展能在 `chrome://extensions/` 里显示
+2. 点击扩展图标后，侧边栏可以打开
+3. 已登录的 AI 页面在侧边栏中显示为已连接
+4. 打开控制台后，可以发送一条测试消息并收到回复
+
+## 最重要的分发原则
+
+如果你要把这个项目发给别人，推荐方式只有一种：
+
+1. 让别人去 GitHub `Releases`
+2. 下载发布资产 `g4-ai-extension-vX.Y.Z.zip`
+3. 解压后直接 `Load unpacked`
+
+不要再让普通用户执行任何构建命令。
+
+## 如果有人下错了 GitHub 源码包
+
+如果对方下载的是仓库首页的 `Code -> Download ZIP`，或者 Release 页面下方的 `Source code (zip)`，也不是完全不能用，但不推荐作为正式分发方式。
+
+原因是源码包里目录会多一层，普通用户更容易选错目录。
+
+如果对方已经下了源码包，真正需要导入浏览器的仍然是其中这个目录：
+
+```text
+AI-CrossTalk/
+```
+
+判断标准仍然一样：
+
+- 选中的目录里第一层必须直接看到 `manifest.json`
+
+## 首次使用建议
+
+### 普通模式
+
+1. 在左侧勾选目标 AI
+2. 在输入框中输入问题
+3. 回车发送
+4. 等待各 AI 返回结果
+
+### `/mutual` 互评
+
+`/mutual` 会让当前选中的 AI 互相评审彼此的回答。
+
+示例：
 
 ```text
 /mutual
 ```
 
 ```text
-/mutual 请找出另外几个回答里的漏洞并给出改进版本
+/mutual 请指出其他回答中的漏洞，并给出你认为更好的版本
 ```
 
-配合建议：
+建议先问一轮，再执行 `/mutual`。
 
-- 先正常提问拿到第一轮答案，再执行 `/mutual`
-- 至少勾选 2 个 AI，效果才明显
-- 如果要更严格对比，第二轮可再用 `/cross`
+### `/cross` 定向交叉评审
 
----
+语法：
 
-## 本地开发命令
+```text
+/cross @目标AI <- @来源AI 补充提示词
+```
 
-在仓库根目录 `G4-AI/AI-CrossTalk`：
+示例：
+
+```text
+/cross @claude <- @chatgpt 请只检查逻辑漏洞，不要重复原答案
+```
+
+多目标示例：
+
+```text
+/cross @claude @gemini <- @chatgpt 请分别给出批判性改写
+```
+
+### 讨论模式
+
+讨论模式适合 2 到 4 个 AI 围绕同一主题多轮交流、互相回应、最后生成总结。
+
+## 常见问题
+
+### 1）为什么我已经下载 zip 了，Chrome 还是导入失败？
+
+最常见原因是你选错了目录。
+
+Chrome 要求你选中的文件夹第一层就直接包含：
+
+```text
+manifest.json
+```
+
+如果 `manifest.json` 还在更深一层，继续进入那一层再选。
+
+### 2）为什么插件装上了，但 AI 状态一直是灰色？
+
+按顺序检查：
+
+1. 目标网站是否已经打开
+2. 是否已经登录
+3. 当前页面是否是真正聊天页
+4. 是否刷新过该 AI 页面
+5. 是否同平台开了多个标签页
+
+建议每个平台只保留一个聊天标签页，否则容易出现状态判断或发送异常。
+
+### 3）控制台能打开，但发消息失败
+
+这类问题通常来自目标网站页面结构变化、页面不在正确聊天状态，或者同平台开了多个标签页。
+
+先尝试：
+
+1. 刷新目标 AI 页面
+2. 确认该网页中的输入框和发送按钮可正常使用
+3. 关闭同平台多余标签页
+4. 回到 `chrome://extensions/` 刷新扩展
+
+### 4）这个项目是不是已经可以“零命令安装”？
+
+对普通用户来说，是的。
+
+前提是你下载的是 GitHub Release 里的现成发布包，而不是自己从源码重新构建。
+
+## 给维护者的发布流程
+
+这个仓库已经补上了“发布 Release 资产”的自动流程。
+
+发布时建议这样做：
+
+1. 更新 [`AI-CrossTalk/manifest.json`](AI-CrossTalk/manifest.json) 中的版本号
+2. 如有需要，同步更新 [`web/package.json`](web/package.json) 中的版本号
+3. 提交代码
+4. 创建并推送 tag，例如：
 
 ```bash
-# 前端开发
-cd web
-npm run dev
-
-# 前端构建（会输出到 AI-CrossTalk/web）
-npm run build
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
----
+推送 tag 后，GitHub Actions 会自动完成：
 
-## 性能与稳定性设计
+1. 安装 `web` 依赖
+2. 构建前端产物到扩展目录
+3. 生成发布目录
+4. 打包成：
 
-当前版本已做的优化：
+```text
+g4-ai-extension-v1.0.1.zip
+```
 
-- 普通模式多 AI 发送改为并行（非串行）
-- 互评 / 交叉 / 刷新流程并行化
-- 讨论模式等待窗口从固定 8 秒降到更短策略
-- 后台增加 AI 标签缓存，减少全量 tab 扫描
-- 内容脚本健康缓存，减少重复 ping
-- 请求超时收紧，失败更快返回（避免长时间卡死）
+5. 上传到对应的 GitHub Release
 
-> 注意：网页自动化受目标站点 DOM、网络和账号状态影响，不可能“绝对零延迟”，但当前链路已优先做“快失败 + 并行”。
+相关文件：
 
----
+- `.github/workflows/release-extension.yml`
+- `scripts/prepare-release.mjs`
+
+### Release 资产里是什么
+
+Release zip 解压后，得到的是一个已经构建好的扩展目录：
+
+```text
+g4-ai-extension-vX.Y.Z/
+├── manifest.json
+├── background.js
+├── content/
+├── sidepanel/
+├── icons/
+├── web/
+└── INSTALL.txt
+```
+
+这个目录就是给最终用户 `Load unpacked` 用的。
+
+## 从源码开发（仅开发者）
+
+只有在下面这些情况下，才需要本地命令：
+
+- 你要改前端界面
+- 你要改内容脚本
+- 你要重新生成一个新版本
+
+### 环境
+
+- Node.js 18+（建议）
+- npm
+
+### 本地构建
+
+```bash
+git clone https://github.com/qianzhu18/G4-AI.git
+cd G4-AI/AI-CrossTalk
+cd web
+npm install
+npm run build
+cd ..
+```
+
+构建产物会输出到：
+
+```text
+AI-CrossTalk/web/
+```
+
+浏览器真正要加载的目录仍然是：
+
+```text
+AI-CrossTalk/
+```
+
+### 本地开发模式
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+这属于开发调试模式，不是普通用户安装时走的路径。
+
+在这个模式下：
+
+- 你可能需要使用扩展里的 `Extension ID`
+- 你可能需要使用 6 位配对码
+- 这些都只和开发调试有关
 
 ## 项目结构
 
 ```text
 AI-CrossTalk/
-├── AI-CrossTalk/                # Chrome 扩展主体
-│   ├── background.js
+├── AI-CrossTalk/                 # Chrome 扩展主体，也是浏览器实际加载的目录
 │   ├── manifest.json
+│   ├── background.js
 │   ├── content/
-│   │   ├── claude.js
-│   │   ├── chatgpt.js
-│   │   ├── gemini.js
-│   │   └── grok.js
 │   ├── sidepanel/
-│   │   ├── panel.html
-│   │   ├── panel.css
-│   │   └── panel.js
 │   ├── icons/
-│   └── web/                     # 构建产物
+│   └── web/                     # 已构建的控制台前端
 ├── web/                         # React + TS 源码
-└── scripts/
-    └── generate-g4-icons.mjs
+├── scripts/
+│   ├── generate-g4-icons.mjs
+│   └── prepare-release.mjs
+└── .github/workflows/
+    └── release-extension.yml
 ```
 
----
+## 当前限制
 
-## 常见问题
-
-### Q1：`fatal: not a git repository`
-
-你不在仓库根目录。先执行：
-
-```bash
-cd /Users/mac/Downloads/code/CrossWise/AI-CrossTalk
-```
-
-### Q2：`bash` 报错 `.bashrc syntax error`
-
-建议使用 `zsh`，或修复 `.bashrc` 里的错误行后再执行命令。
-
-### Q3：为什么我复制命令会失败？
-
-不要把 Markdown 代码块标记 `````bash` 和 ``` 复制到终端，只复制中间命令内容。
-
----
-
-## Git 分支与版本
-
-- 稳定分支开发：`feature/g4-ai-v1`
-- 稳定标签：`v1.0.0`、`tag/1.0.0`
-
----
+- 目前仍然是“下载 zip 后手动 `Load unpacked`”的安装方式
+- 还没有上架 Chrome Web Store
+- 功能依赖目标 AI 网站页面结构，站点改版后可能需要适配
+- 不同地区网络、账号状态、订阅方案可能影响使用效果
 
 ## 开源协议
 
 MIT
-
----
-
-## 致谢
-
-- 原始灵感项目：`ai-roundtable`
-- 当前仓库地址：`https://github.com/qianzhu18/G4-AI`
